@@ -4,7 +4,7 @@ Status: Draft
 
 Version: 1.0
 
-Owner: RiskLens Technologies
+Owner: Niyo Technologies
 
 Last Updated: June 2026
 
@@ -20,7 +20,7 @@ The platform combines claim management, document management, OCR processing, ima
 
 # Company
 
-RiskLens Technologies
+Niyo Technologies
 
 ---
 

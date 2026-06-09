@@ -2,7 +2,7 @@
 
 Status: Frozen
 Version: 1.2
-Owner: RiskLens Technologies
+Owner: Niyo Technologies
 Last Updated: June 2026
 
 ---
@@ -863,7 +863,7 @@ Status: Approved
 
 Version: 1.0
 
-Owner: RiskLens Technologies
+Owner: Niyo Technologies
 
 ---
 

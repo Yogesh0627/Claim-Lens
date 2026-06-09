@@ -4,7 +4,7 @@ Status: Draft
 
 Version: 1.0
 
-Owner: RiskLens Technologies
+Owner: Niyo Technologies
 
 ---
 
@@ -674,7 +674,7 @@ Status: Draft
 
 Version: 1.0
 
-Owner: RiskLens Technologies
+Owner: Niyo Technologies
 
 ---
 

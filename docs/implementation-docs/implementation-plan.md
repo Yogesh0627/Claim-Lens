@@ -1,7 +1,7 @@
 # 10.1 Implementation Blueprint
 
 **Project:** ClaimLens
-**Company:** RiskLens Technologies
+**Company:** Niyo Technologies
 
 ---
 
@@ -60,7 +60,7 @@ insurance-fraud-platform/
 Base Package
 
 ```text
-com.risklens.claimlens
+com.Niyo.claimlens
 ```
 
 ## Core Packages

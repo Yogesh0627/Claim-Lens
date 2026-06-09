@@ -5,7 +5,7 @@
 | Field           | Value                    |
 | --------------- | ------------------------ |
 | Project         | ClaimLens                |
-| Company         | RiskLens Technologies    |
+| Company         | Niyo Technologies    |
 | Version         | V1                       |
 | Document Type   | Service Design           |
 | Document Number | 09.1                     |
@@ -66,7 +66,7 @@ Analysis Service (Python)
 Root Package
 
 ```text
-com.risklens.claimlens
+com.Niyo.claimlens
 ```
 
 ---
@@ -74,7 +74,7 @@ com.risklens.claimlens
 ## Module Structure
 
 ```text
-com.risklens.claimlens
+com.Niyo.claimlens
 
 ├── claim
 ├── document

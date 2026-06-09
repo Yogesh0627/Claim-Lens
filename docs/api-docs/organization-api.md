@@ -5,7 +5,7 @@
 | Field           | Value                       |
 | --------------- | --------------------------- |
 | Project         | ClaimLens                   |
-| Company         | RiskLens Technologies       |
+| Company         | Niyo Technologies       |
 | Version         | V1                          |
 | Document Type   | API Design                  |
 | Document Number | 07.3                        |

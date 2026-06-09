@@ -5,7 +5,7 @@
 | Field           | Value                 |
 | --------------- | --------------------- |
 | Project         | ClaimLens             |
-| Company         | RiskLens Technologies |
+| Company         | Niyo Technologies |
 | Version         | V1                    |
 | Document Type   | Event Design          |
 | Document Number | 08.2                  |
