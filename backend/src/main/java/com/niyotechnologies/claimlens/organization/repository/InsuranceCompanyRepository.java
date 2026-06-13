@@ -14,6 +14,11 @@ public interface InsuranceCompanyRepository
 
     Optional<InsuranceCompany> findByTenantKey(String tenantKey);
 
+    Optional<InsuranceCompany>
+    findByIdAndIsDeletedFalse(
+            Long id
+    );
+
     boolean existsByCode(String code);
 
     boolean existsByTenantKey(String tenantKey);
