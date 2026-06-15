@@ -3,7 +3,6 @@ package com.niyotechnologies.claimlens.organization.dto.response;
 import com.niyotechnologies.claimlens.organization.enums.RegionStatus;
 import lombok.Builder;
 import lombok.Data;
-import lombok.Getter;
 
 import java.time.Instant;
 
