@@ -7,6 +7,7 @@ import com.niyotechnologies.claimlens.organization.dto.request.UpdateInsuranceCo
 import com.niyotechnologies.claimlens.organization.dto.response.InsuranceCompanyResponse;
 import com.niyotechnologies.claimlens.organization.entity.InsuranceCompany;
 import com.niyotechnologies.claimlens.organization.enums.InsuranceCompanyStatus;
+import com.niyotechnologies.claimlens.organization.mapper.InsuranceCompanyMapper;
 import com.niyotechnologies.claimlens.organization.repository.InsuranceCompanyRepository;
 import com.niyotechnologies.claimlens.organization.service.OrganizationService;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,9 @@ public class InsuranceCompanyServiceImpl
     @Autowired
     private final InsuranceCompanyRepository insuranceCompanyRepository;
 
+    @Autowired
+    private final InsuranceCompanyMapper insuranceCompanyMapper;
+
 
     @Override
     public InsuranceCompanyResponse createInsuranceCompany(
@@ -34,36 +38,13 @@ public class InsuranceCompanyServiceImpl
 
         validateCreateCompanyRequest(request);
 
-        InsuranceCompany company = new InsuranceCompany();
+        InsuranceCompany company =
+                insuranceCompanyMapper.toEntity(request);
 
-        company.setName(request.getName());
-        company.setCode(request.getCode());
-        company.setTenantKey(request.getTenantKey());
-
-        company.setContactEmail(request.getContactEmail());
-        company.setContactPhone(request.getContactPhone());
-
-        company.setWebsite(request.getWebsite());
-        company.setHeadOfficeAddress(request.getHeadOfficeAddress());
-        company.setLogoUrl(request.getLogoUrl());
-
-//        company.setBrandingConfig(request.getBrandingConfig());
-
-        company.setSubscriptionPlan(
-                request.getSubscriptionPlan()
-        );
-
-        company.setCurrency(request.getCurrency());
-        company.setTimezone(request.getTimezone());
-
-        company.setStatus(
-                InsuranceCompanyStatus.ONBOARDING
-        );
-
-        InsuranceCompany savedCompany =
+        InsuranceCompany saved =
                 insuranceCompanyRepository.save(company);
 
-        return mapToResponse(savedCompany);
+        return insuranceCompanyMapper.toResponse(saved);
     }
 
     private void validateCreateCompanyRequest(
@@ -100,17 +81,15 @@ public class InsuranceCompanyServiceImpl
 
         InsuranceCompany company = getCompanyOrThrow(companyId);
 
-        return mapToResponse(company);
+        return insuranceCompanyMapper.toResponse(company);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<InsuranceCompanyResponse> getAllCompanies(){
 
-        List <InsuranceCompany> companies = insuranceCompanyRepository.findAll();
-        return companies.stream()
-                .map(this::mapToResponse)
-                .toList();
+        List <InsuranceCompany> companies = insuranceCompanyRepository.findAllByIsDeletedFalse();
+         return insuranceCompanyMapper.toResponseList(companies);
     }
 
     private InsuranceCompany getCompanyOrThrow(
@@ -126,22 +105,6 @@ public class InsuranceCompanyServiceImpl
                 );
     }
 
-    private InsuranceCompanyResponse mapToResponse(
-            InsuranceCompany company
-    ) {
-
-        return InsuranceCompanyResponse.builder()
-                .id(company.getId())
-                .name(company.getName())
-                .code(company.getCode())
-                .tenantKey(company.getTenantKey())
-                .status(company.getStatus())
-                .subscriptionPlan(company.getSubscriptionPlan())
-                .currency(company.getCurrency())
-                .timezone(company.getTimezone())
-                .createdAt(company.getCreatedAt())
-                .build();
-    }
 
     @Override
     public InsuranceCompanyResponse updateInsuranceCompany(
@@ -152,42 +115,14 @@ public class InsuranceCompanyServiceImpl
         InsuranceCompany company =
                 getCompanyOrThrow(companyId);
 
-        company.setName(request.getName());
-
-        company.setContactEmail(
-                request.getContactEmail()
-        );
-
-        company.setContactPhone(
-                request.getContactPhone()
-        );
-
-        company.setWebsite(
-                request.getWebsite()
-        );
-
-        company.setHeadOfficeAddress(
-                request.getHeadOfficeAddress()
-        );
-
-        company.setSubscriptionPlan(
-                request.getSubscriptionPlan()
-        );
-
-        company.setCurrency(
-                request.getCurrency()
-        );
-
-        company.setTimezone(
-                request.getTimezone()
-        );
-
         InsuranceCompany updatedCompany =
                 insuranceCompanyRepository.save(company);
 
-        return mapToResponse(updatedCompany);
+        return insuranceCompanyMapper.toResponse(updatedCompany);
+
     }
 
+    @Override
     public void deleteInsuranceCompany(Long companyId){
 
         InsuranceCompany company =

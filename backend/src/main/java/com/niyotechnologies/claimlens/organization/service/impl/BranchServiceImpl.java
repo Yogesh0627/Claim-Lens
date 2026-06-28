@@ -8,6 +8,7 @@ import com.niyotechnologies.claimlens.organization.dto.response.BranchResponse;
 import com.niyotechnologies.claimlens.organization.entity.Branch;
 import com.niyotechnologies.claimlens.organization.entity.InsuranceCompany;
 import com.niyotechnologies.claimlens.organization.entity.Region;
+import com.niyotechnologies.claimlens.organization.mapper.BranchMapper;
 import com.niyotechnologies.claimlens.organization.repository.BranchRepository;
 import com.niyotechnologies.claimlens.organization.repository.InsuranceCompanyRepository;
 import com.niyotechnologies.claimlens.organization.repository.RegionRepository;
@@ -28,6 +29,7 @@ public class BranchServiceImpl implements BranchService {
     private final BranchRepository branchRepository;
     private final RegionRepository regionRepository;
     private final InsuranceCompanyRepository insuranceCompanyRepository;
+    private final BranchMapper branchMapper;
 
     private InsuranceCompany getCompanyOrThrow(
             Long companyId
@@ -106,30 +108,6 @@ public class BranchServiceImpl implements BranchService {
         return branch;
     }
 
-    private BranchResponse mapToResponse(
-            Branch branch
-    ) {
-
-        return BranchResponse.builder()
-                .id(branch.getId())
-                .tenantId(branch.getTenantId())
-                .regionId(branch.getRegionId())
-                .code(branch.getCode())
-                .name(branch.getName())
-                .ownerUserId(branch.getOwnerUserId())
-                .email(branch.getEmail())
-                .phone(branch.getPhone())
-                .address(branch.getAddress())
-                .city(branch.getCity())
-                .state(branch.getState())
-                .country(branch.getCountry())
-                .postalCode(branch.getPostalCode())
-                .status(branch.getStatus())
-                .description(branch.getDescription())
-                .createdAt(branch.getCreatedAt())
-                .updatedAt(branch.getUpdatedAt())
-                .build();
-    }
 
     @Override
     @Transactional
@@ -161,32 +139,16 @@ public class BranchServiceImpl implements BranchService {
             );
         }
 
-        Branch branch = new Branch();
-
-        branch.setTenantId(companyId);
-        branch.setRegionId(region.getId());
-
-        branch.setCode(request.getCode());
-        branch.setName(request.getName());
-
-        branch.setOwnerUserId(request.getOwnerUserId());
-
-        branch.setEmail(request.getEmail());
-        branch.setPhone(request.getPhone());
-
-        branch.setAddress(request.getAddress());
-        branch.setCity(request.getCity());
-        branch.setState(request.getState());
-        branch.setCountry(request.getCountry());
-        branch.setPostalCode(request.getPostalCode());
-
-        branch.setStatus(request.getStatus());
-        branch.setDescription(request.getDescription());
+        Branch branch = branchMapper.toEntity(
+                companyId,
+                region.getId(),
+                request
+        );
 
         Branch savedBranch =
                 branchRepository.save(branch);
 
-        return mapToResponse(savedBranch);
+        return branchMapper.toResponse(savedBranch);
     }
 
 
@@ -210,7 +172,7 @@ public class BranchServiceImpl implements BranchService {
                         branchId
                 );
 
-        return mapToResponse(branch);
+        return branchMapper.toResponse(branch);
     }
 
 
@@ -227,11 +189,10 @@ public class BranchServiceImpl implements BranchService {
                 regionId
         );
 
-        return branchRepository
-                .findAllByRegionIdAndIsDeletedFalse(regionId)
-                .stream()
-                .map(this::mapToResponse)
-                .toList();
+        List<Branch> branches =
+                branchRepository.findAllByRegionIdAndIsDeletedFalse(regionId);
+
+        return branchMapper.toResponseList(branches);
     }
 
     @Override
@@ -256,26 +217,16 @@ public class BranchServiceImpl implements BranchService {
                         branchId
                 );
 
-        branch.setName(request.getName());
-
-        branch.setOwnerUserId(request.getOwnerUserId());
-
-        branch.setEmail(request.getEmail());
-        branch.setPhone(request.getPhone());
-
-        branch.setAddress(request.getAddress());
-        branch.setCity(request.getCity());
-        branch.setState(request.getState());
-        branch.setCountry(request.getCountry());
-        branch.setPostalCode(request.getPostalCode());
-
-        branch.setStatus(request.getStatus());
-        branch.setDescription(request.getDescription());
+        branchMapper.updateEntity(
+                branch,
+                request
+        );
 
         Branch updatedBranch =
                 branchRepository.save(branch);
 
-        return mapToResponse(updatedBranch);
+        return branchMapper.toResponse(updatedBranch);
+
     }
 
     @Override

@@ -7,6 +7,7 @@ import com.niyotechnologies.claimlens.organization.dto.request.UpdateRegionReque
 import com.niyotechnologies.claimlens.organization.dto.response.RegionResponse;
 import com.niyotechnologies.claimlens.organization.entity.InsuranceCompany;
 import com.niyotechnologies.claimlens.organization.entity.Region;
+import com.niyotechnologies.claimlens.organization.mapper.RegionMapper;
 import com.niyotechnologies.claimlens.organization.repository.InsuranceCompanyRepository;
 import com.niyotechnologies.claimlens.organization.repository.RegionRepository;
 import com.niyotechnologies.claimlens.organization.service.RegionService;
@@ -23,6 +24,7 @@ public class RegionServiceImpl implements RegionService {
 
     private final RegionRepository regionRepository;
     private final InsuranceCompanyRepository insuranceCompanyRepository;
+    private final RegionMapper regionMapper;
 
     private InsuranceCompany getCompanyOrThrow(
             Long companyId
@@ -98,19 +100,13 @@ public class RegionServiceImpl implements RegionService {
             );
         }
 
-        Region region = new Region();
-
-        region.setTenantId(companyId);
-        region.setCode(request.getCode());
-        region.setName(request.getName());
-        region.setOwnerUserId(request.getOwnerUserId());
-        region.setStatus(request.getStatus());
-        region.setDescription(request.getDescription());
+        Region region =
+                regionMapper.toEntity(companyId, request);
 
         Region savedRegion =
                 regionRepository.save(region);
 
-        return mapToResponse(savedRegion);
+        return regionMapper.toResponse(savedRegion);
     }
 
 
@@ -125,22 +121,22 @@ public class RegionServiceImpl implements RegionService {
                         companyId,
                         regionId);
 
-        return mapToResponse(region);
+        return regionMapper.toResponse(region);
     }
 
 
     @Override
+    @Transactional(readOnly = true)
     public List<RegionResponse> getRegionsByCompany(
             Long companyId
     ) {
 
         getCompanyOrThrow(companyId);
 
-        return regionRepository
-                .findAllByTenantIdAndIsDeletedFalse(companyId)
-                .stream()
-                .map(this::mapToResponse)
-                .toList();
+        List<Region> regions =
+                regionRepository.findAllByTenantIdAndIsDeletedFalse(companyId);
+
+        return regionMapper.toResponseList(regions);
     }
 
     @Override
@@ -159,15 +155,15 @@ public class RegionServiceImpl implements RegionService {
                         regionId
                 );
 
-        region.setName(request.getName());
-        region.setOwnerUserId(request.getOwnerUserId());
-        region.setStatus(request.getStatus());
-        region.setDescription(request.getDescription());
+        regionMapper.updateEntity(
+                region,
+                request
+        );
 
         Region updatedRegion =
                 regionRepository.save(region);
 
-        return mapToResponse(updatedRegion);
+        return regionMapper.toResponse(updatedRegion);
     }
 
 
