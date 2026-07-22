@@ -6,14 +6,13 @@ import com.niyotechnologies.claimlens.organization.dto.request.CreateBranchReque
 import com.niyotechnologies.claimlens.organization.dto.request.UpdateBranchRequest;
 import com.niyotechnologies.claimlens.organization.dto.response.BranchResponse;
 import com.niyotechnologies.claimlens.organization.entity.Branch;
-import com.niyotechnologies.claimlens.organization.entity.InsuranceCompany;
 import com.niyotechnologies.claimlens.organization.entity.Region;
 import com.niyotechnologies.claimlens.organization.mapper.BranchMapper;
 import com.niyotechnologies.claimlens.organization.repository.BranchRepository;
-import com.niyotechnologies.claimlens.organization.repository.InsuranceCompanyRepository;
 import com.niyotechnologies.claimlens.organization.repository.RegionRepository;
 import com.niyotechnologies.claimlens.organization.service.BranchService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +20,12 @@ import java.time.Instant;
 import java.util.List;
 
 
+/**
+ * Tenant scoping is enforced by Hibernate @TenantId (see TenantAwareEntity): every query and
+ * insert is bound to the current tenant automatically, so this service no longer takes or checks
+ * a companyId. The region parent (regionId) is a real FK and is still validated here. The tenant
+ * comes from the JWT via TenantContext.
+ */
 @Service
 @RequiredArgsConstructor
 public class BranchServiceImpl implements BranchService {
@@ -28,22 +33,7 @@ public class BranchServiceImpl implements BranchService {
 
     private final BranchRepository branchRepository;
     private final RegionRepository regionRepository;
-    private final InsuranceCompanyRepository insuranceCompanyRepository;
     private final BranchMapper branchMapper;
-
-    private InsuranceCompany getCompanyOrThrow(
-            Long companyId
-    ) {
-
-        return insuranceCompanyRepository
-                .findByIdAndIsDeletedFalse(companyId)
-                .orElseThrow(() ->
-                        new NotFoundException(
-                                "COMPANY_NOT_FOUND",
-                                "Insurance company not found"
-                        )
-                );
-    }
 
     private Region getRegionOrThrow(
             Long regionId
@@ -57,23 +47,6 @@ public class BranchServiceImpl implements BranchService {
                                 "Region not found"
                         )
                 );
-    }
-
-    private Region getRegionForCompanyOrThrow(
-            Long companyId,
-            Long regionId
-    ) {
-
-        Region region = getRegionOrThrow(regionId);
-
-        if (!region.getTenantId().equals(companyId)) {
-            throw new NotFoundException(
-                    "REGION_NOT_FOUND",
-                    "Region not found"
-            );
-        }
-
-        return region;
     }
 
 
@@ -111,24 +84,17 @@ public class BranchServiceImpl implements BranchService {
 
     @Override
     @Transactional
+    @PreAuthorize("hasAuthority('ORG_BRANCH_WRITE')")
     public BranchResponse createBranch(
-            Long companyId,
             Long regionId,
             CreateBranchRequest request
     ) {
 
-        getCompanyOrThrow(companyId);
-
-        Region region =
-                getRegionForCompanyOrThrow(
-                        companyId,
-                        regionId
-                );
+        Region region = getRegionOrThrow(regionId);
 
         boolean branchExists =
                 branchRepository
-                        .existsByTenantIdAndCodeAndIsDeletedFalse(
-                                companyId,
+                        .existsByCodeAndIsDeletedFalse(
                                 request.getCode()
                         );
 
@@ -139,8 +105,9 @@ public class BranchServiceImpl implements BranchService {
             );
         }
 
+        // tenant_id is set by Hibernate @TenantId on persist — do not set it here.
+        // regionId is a real FK and is set from the validated region.
         Branch branch = branchMapper.toEntity(
-                companyId,
                 region.getId(),
                 request
         );
@@ -153,18 +120,13 @@ public class BranchServiceImpl implements BranchService {
 
 
     @Override
+    @PreAuthorize("hasAuthority('ORG_BRANCH_READ')")
     public BranchResponse getBranch(
-            Long companyId,
             Long regionId,
             Long branchId
     ) {
 
-        getCompanyOrThrow(companyId);
-
-        getRegionForCompanyOrThrow(
-                companyId,
-                regionId
-        );
+        getRegionOrThrow(regionId);
 
         Branch branch =
                 getBranchForRegionOrThrow(
@@ -177,17 +139,12 @@ public class BranchServiceImpl implements BranchService {
 
 
     @Override
+    @PreAuthorize("hasAuthority('ORG_BRANCH_READ')")
     public List<BranchResponse> getBranchesByRegion(
-            Long companyId,
             Long regionId
     ) {
 
-        getCompanyOrThrow(companyId);
-
-        getRegionForCompanyOrThrow(
-                companyId,
-                regionId
-        );
+        getRegionOrThrow(regionId);
 
         List<Branch> branches =
                 branchRepository.findAllByRegionIdAndIsDeletedFalse(regionId);
@@ -197,19 +154,14 @@ public class BranchServiceImpl implements BranchService {
 
     @Override
     @Transactional
+    @PreAuthorize("hasAuthority('ORG_BRANCH_WRITE')")
     public BranchResponse updateBranch(
-            Long companyId,
             Long regionId,
             Long branchId,
             UpdateBranchRequest request
     ) {
 
-        getCompanyOrThrow(companyId);
-
-        getRegionForCompanyOrThrow(
-                companyId,
-                regionId
-        );
+        getRegionOrThrow(regionId);
 
         Branch branch =
                 getBranchForRegionOrThrow(
@@ -231,18 +183,13 @@ public class BranchServiceImpl implements BranchService {
 
     @Override
     @Transactional
+    @PreAuthorize("hasAuthority('ORG_BRANCH_WRITE')")
     public void deleteBranch(
-            Long companyId,
             Long regionId,
             Long branchId
     ) {
 
-        getCompanyOrThrow(companyId);
-
-        getRegionForCompanyOrThrow(
-                companyId,
-                regionId
-        );
+        getRegionOrThrow(regionId);
 
         Branch branch =
                 getBranchForRegionOrThrow(

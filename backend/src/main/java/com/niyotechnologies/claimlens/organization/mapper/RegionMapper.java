@@ -12,14 +12,11 @@ import java.util.List;
 @Component
 public class RegionMapper {
 
-    public Region toEntity(
-            Long tenantId,
-            CreateRegionRequest request
-    ) {
+    public Region toEntity(CreateRegionRequest request) {
 
         Region region = new Region();
 
-        region.setTenantId(tenantId);
+        // tenant_id is populated by Hibernate @TenantId on persist — not set here.
         region.setCode(request.getCode().trim());
         region.setName(request.getName().trim());
 

@@ -4,7 +4,7 @@ import com.niyotechnologies.claimlens.common.response.ApiResponse;
 import com.niyotechnologies.claimlens.organization.dto.request.CreateInsuranceCompanyRequest;
 import com.niyotechnologies.claimlens.organization.dto.request.UpdateInsuranceCompanyRequest;
 import com.niyotechnologies.claimlens.organization.dto.response.InsuranceCompanyResponse;
-import com.niyotechnologies.claimlens.organization.service.OrganizationService;
+import com.niyotechnologies.claimlens.organization.service.InsuranceCompanyService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,13 +14,12 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-//@RequestMapping("/api/v1/organizations")
 @RequestMapping("${claimlens.api.base-path}/organizations")
 @RequiredArgsConstructor
 public class InsuranceCompanyController {
 
     @Autowired
-    private final OrganizationService organizationService;
+    private final InsuranceCompanyService organizationService;
 
     @PostMapping("/companies")
     @ResponseStatus(HttpStatus.CREATED)

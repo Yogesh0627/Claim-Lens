@@ -1,0 +1,54 @@
+---
+title: "Anatomy of a Fraudulent Motor Claim — and How Software Catches It"
+description: "The common fraud patterns in motor claims, why humans miss them, and the signals a claims engine uses to flag the right claims for investigation."
+date: "2026-07-16"
+category: "Claims"
+author: "ClaimLens Team"
+tags:
+  - fraud
+  - claims
+  - investigation
+---
+
+# Anatomy of a Fraudulent Motor Claim — and How Software Catches It
+
+Insurance fraud is rarely the movie version — a staged pile-up with actors. Far more often it is small, quiet, and plausible: a real dent, a slightly inflated estimate, a photo borrowed from another claim. Individually each looks fine. At scale, it is where a lot of money leaks.
+
+Here are the patterns that recur, and how a claims platform surfaces them.
+
+## Pattern 1: The reused photograph
+
+The same photo of "damage" shows up on more than one claim, or is lifted from an old claim and resubmitted. To a human reviewing one claim in isolation, it looks perfectly genuine.
+
+**The signal:** a *perceptual hash* of every uploaded image. Unlike a normal file hash, a perceptual hash stays similar even after resizing, recompression or a light crop. When a new image hashes close to one already seen in the tenant, that is a strong reuse signal.
+
+## Pattern 2: The lightly-edited image
+
+A cleverer version: crop, rotate, or nudge the colours so the file hash *and* the perceptual hash shift, but it is still the same underlying photo.
+
+**The signal:** feature matching (ORB keypoints). It compares the visual structure of two images rather than their pixels, so it catches edited reuse that hashing alone would miss.
+
+## Pattern 3: The timeline that doesn't add up
+
+A damage photo whose capture timestamp is *before* the reported incident date. Or GPS metadata placing the photo far from where the accident supposedly happened.
+
+**The signal:** EXIF metadata — but handled carefully. This is a load-bearing edge case: **most phones and messaging apps strip EXIF entirely**, so *missing* metadata is normal, not suspicious. Only a genuine *inconsistency* (capture-before-incident, GPS far away) should raise the score. Absence must be treated as "unknown," never as guilt.
+
+## Pattern 4: The mismatched details
+
+The registration number on the RC does not match the vehicle on the policy. The claim amount quietly exceeds the sum insured. The claimant is not the policyholder.
+
+**The signal:** structured extraction. OCR reads the registration and policy numbers off the documents, and the engine compares them against the policy on record. A mismatch is a hard stop or a strong flag depending on which field.
+
+## Hard rejects vs. soft signals
+
+Here is the principle that keeps honest customers happy: **reject only when the claim is *certainly* invalid; otherwise, flag and let a human decide.**
+
+- **Hard:** policy not active on the loss date, vehicle not covered, claimant not the policyholder. These are certainties — reject at submission.
+- **Soft:** amount over the limit, a repeat claim on the same vehicle, a possible duplicate photo. These *might* be innocent (an estimate that arrives later, a mistyped amount) — so they become fraud *signals* for an investigator, never an automatic rejection.
+
+## Why explainability matters
+
+When software contributes to a decision that affects a payout, "the model said 72" is not good enough — for the customer, the investigator, or the regulator. Every signal that fed a fraud score has to be recorded: *this* image matched *that* claim, *this* registration didn't match the policy. A score without its reasons is not a decision; it is a guess with a number attached.
+
+That is the difference between a fraud filter that people trust and one they quietly override.

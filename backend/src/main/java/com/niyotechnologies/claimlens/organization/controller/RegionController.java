@@ -15,8 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-//@RequestMapping("/api/v1/organizations")
-@RequestMapping("${claimlens.api.base-path}/organizations/companies")
+@RequestMapping("${claimlens.api.base-path}/organizations")
 @RequiredArgsConstructor
 public class RegionController {
 
@@ -24,58 +23,43 @@ public class RegionController {
     @Autowired
     private final RegionService regionService;
 
-    @PostMapping("/{companyId}/regions")
+    @PostMapping("/regions")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<RegionResponse> createRegion(
-            @PathVariable Long companyId,
             @Valid @RequestBody CreateRegionRequest request
     ) {
         return ApiResponse.success(
-                regionService.createRegion(companyId,request)
+                regionService.createRegion(request)
         );
     }
 
-    @GetMapping("/{companyId}/regions/{regionId}")
+    @GetMapping("/regions/{regionId}")
     @ResponseStatus(HttpStatus.OK)
-    public ApiResponse<RegionResponse> getRegion(@PathVariable Long companyId, @PathVariable Long regionId){
+    public ApiResponse<RegionResponse> getRegion(@PathVariable Long regionId) {
 
-        RegionResponse region = regionService.getRegion(companyId, regionId);
-
-        return ApiResponse.success(region);
+        return ApiResponse.success(regionService.getRegion(regionId));
     }
 
-    @GetMapping("/{companyId}/regions")
-    public ApiResponse<List<RegionResponse>>
-    getAllRegions(@PathVariable Long companyId) {
+    @GetMapping("/regions")
+    public ApiResponse<List<RegionResponse>> getAllRegions() {
 
-        return ApiResponse.success(
-                regionService.getRegionsByCompany(companyId)
-        );
+        return ApiResponse.success(regionService.getRegions());
     }
 
-    @PutMapping("/{companyId}/regions/{regionId}")
+    @PutMapping("/regions/{regionId}")
     public ApiResponse<RegionResponse> updateRegion(
-            @PathVariable Long companyId,
             @PathVariable Long regionId,
             @Valid @RequestBody UpdateRegionRequest request
     ) {
 
         return ApiResponse.success(
-                regionService.updateRegion(
-                        companyId,
-                        regionId,
-                        request
-                )
+                regionService.updateRegion(regionId, request)
         );
     }
 
-    @DeleteMapping("/{companyId}/regions/{regionId}")
+    @DeleteMapping("/regions/{regionId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteRegion(
-            @PathVariable Long companyId,
-            @PathVariable Long regionId
-    ) {
-        regionService
-                .deleteRegion(companyId, regionId);
+    public void deleteRegion(@PathVariable Long regionId) {
+        regionService.deleteRegion(regionId);
     }
 }

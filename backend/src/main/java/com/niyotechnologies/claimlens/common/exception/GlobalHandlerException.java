@@ -4,6 +4,7 @@ package com.niyotechnologies.claimlens.common.exception;
 import com.niyotechnologies.claimlens.common.response.ApiErrorResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.niyotechnologies.claimlens.common.response.ValidationErrorResponse;
@@ -22,6 +23,21 @@ public class GlobalHandlerException {
 
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
+                .body(
+                        ApiErrorResponse.of(
+                                ex.getCode(),
+                                ex.getMessage()
+                        )
+                );
+    }
+
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<ApiErrorResponse> handleUnauthorized(
+            UnauthorizedException ex
+    ) {
+
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
                 .body(
                         ApiErrorResponse.of(
                                 ex.getCode(),
@@ -71,6 +87,23 @@ public class GlobalHandlerException {
                 .badRequest()
                 .body(
                         ValidationErrorResponse.of(errors)
+                );
+    }
+
+    // @PreAuthorize denials surface as AccessDeniedException here (thrown during handler
+    // invocation). Without this explicit handler the catch-all below turns them into 500s.
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccessDenied(
+            AccessDeniedException ex
+    ) {
+
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(
+                        ApiErrorResponse.of(
+                                "FORBIDDEN",
+                                "You do not have permission to perform this action"
+                        )
                 );
     }
 

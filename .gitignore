@@ -66,13 +66,13 @@ logs/
 # Environment Files
 # =====================
 
+# Real secrets live here (never committed). See backend/.env.example for the template.
 .env
 .env.*
 
+# Developer-local overrides only. Base application.properties (env placeholders, no secrets)
+# and per-environment profiles are tracked deliberately.
 application-local.properties
-application-dev.properties
-application-prod.properties
-application.properties
 
 # =====================
 # Node / Next.js

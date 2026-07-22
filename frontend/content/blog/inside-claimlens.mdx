@@ -1,0 +1,53 @@
+---
+title: "Inside ClaimLens: How We Built a Multi-Tenant Claims Platform"
+description: "A tour of the ClaimLens architecture — strict tenant isolation, a config-driven fraud engine, OCR and image forensics, AI policy Q&A, and a customer self-service portal."
+date: "2026-07-14"
+category: "Our App"
+author: "ClaimLens Team"
+tags:
+  - claimlens
+  - architecture
+  - saas
+---
+
+# Inside ClaimLens: How We Built a Multi-Tenant Claims Platform
+
+ClaimLens is a SaaS for motor-insurance claims: a customer files a claim with documents, OCR and image analysis run in the background, a rules engine scores it for fraud, an investigator is assigned, and they approve or reject — with a complete audit trail. This post is a tour of how the pieces fit.
+
+## One platform, many insurers — kept strictly apart
+
+ClaimLens is multi-tenant: every insurance company is its own isolated tenant. The hard requirement is that **two tenants can never see each other's data** — and "we're careful in our queries" is not good enough for that.
+
+So isolation is enforced *in the database layer*, not by convention. Every tenant-scoped record carries a tenant discriminator that the ORM appends to every read, write and load-by-id automatically. You cannot forget it, because it is a property of the entity type, not something a developer remembers to add to each query. A cross-tenant lookup simply returns "not found."
+
+## Permissions resolved on the server
+
+Who can approve a claim? Who can only read? ClaimLens uses role-based access control where permissions are checked on the **service layer**, not sprinkled through the UI. The token a user carries names their role; the actual permissions are resolved server-side on every request. That means access can be changed and revoked without reissuing anyone's session.
+
+## The claim lifecycle
+
+A claim is not one big operation — it is a sequence, modelled explicitly:
+
+1. **Create a draft** — the claim exists, but is incomplete.
+2. **Upload documents** — repeatable and resumable; large files and flaky networks are the norm, not the exception.
+3. **Submit** — this is the transactional boundary where hard validations run and the claim enters processing.
+
+From there, background processing takes over: OCR reads each document, image analysis produces fraud signals, and the rules engine scores the claim. Crucially, processing settles when every job reaches a *terminal* state — succeeded **or** exhausted its retries — so one corrupt image can never hang a claim forever.
+
+## Reading the documents
+
+OCR extraction is swappable behind a single interface: a self-hosted engine for local development, and Google Cloud Vision for the deployed product. Whichever runs, the output is the same — raw text plus the structured fields the fraud rules care about, like registration and policy numbers.
+
+## Answering coverage questions with AI
+
+"Is windshield damage covered under this policy?" ClaimLens can answer that in plain language, grounded in the *actual policy wording* — using retrieval-augmented generation with citations back to the clauses. And because a customer's claim is pinned to the exact policy version they bought, the answer always reflects the terms they contracted under, not whatever the product looks like today.
+
+## A portal for the people who file claims
+
+Beyond the staff console, ClaimLens has a **customer self-service portal**: a policyholder logs in, files their own claim, uploads documents, submits, and tracks its progress. This adds a second security boundary *below* the tenant — because two customers share a tenant, the platform scopes every read and write to the authenticated policyholder, so one customer can never see another's claim.
+
+## Built to be auditable
+
+Every state change is recorded. Every fraud score keeps the per-rule breakdown that produced it. Notifications go out as claims progress. When a regulator asks "why was this claim decided this way?", the answer is in the system, not in someone's memory.
+
+That is the whole philosophy: **fast for honest claims, careful with suspicious ones, and accountable for every decision.**

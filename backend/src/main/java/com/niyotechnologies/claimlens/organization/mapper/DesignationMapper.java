@@ -13,13 +13,12 @@ import java.util.List;
 public class DesignationMapper {
 
     public Designation toEntity(
-            Long companyId,
             CreateDesignationRequest request
     ) {
 
         Designation designation = new Designation();
 
-        designation.setTenantId(companyId);
+        // tenant_id is populated by Hibernate @TenantId on persist — not set here.
         designation.setCode(request.getCode().trim());
         designation.setName(request.getName().trim());
         designation.setDescription(trim(request.getDescription()));

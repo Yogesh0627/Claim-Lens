@@ -9,27 +9,21 @@ import java.util.List;
 public interface DesignationService {
 
     DesignationResponse createDesignation(
-            Long companyId,
             CreateDesignationRequest request
     );
 
     DesignationResponse getDesignationById(
-            Long companyId,
             Long designationId
     );
 
-    List<DesignationResponse> getAllDesignations(
-            Long companyId
-    );
+    List<DesignationResponse> getAllDesignations();
 
     DesignationResponse updateDesignation(
-            Long companyId,
             Long designationId,
             UpdateDesignationRequest request
     );
 
     void deleteDesignation(
-            Long companyId,
             Long designationId
     );
 }

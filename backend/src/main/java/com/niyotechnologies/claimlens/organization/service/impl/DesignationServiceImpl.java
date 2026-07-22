@@ -6,50 +6,42 @@ import com.niyotechnologies.claimlens.organization.dto.request.CreateDesignation
 import com.niyotechnologies.claimlens.organization.dto.request.UpdateDesignationRequest;
 import com.niyotechnologies.claimlens.organization.dto.response.DesignationResponse;
 import com.niyotechnologies.claimlens.organization.entity.Designation;
-import com.niyotechnologies.claimlens.organization.entity.InsuranceCompany;
 import com.niyotechnologies.claimlens.organization.mapper.DesignationMapper;
 import com.niyotechnologies.claimlens.organization.repository.DesignationRepository;
-import com.niyotechnologies.claimlens.organization.repository.InsuranceCompanyRepository;
 import com.niyotechnologies.claimlens.organization.service.DesignationService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
 
+/**
+ * Tenant scoping is enforced by Hibernate @TenantId (see TenantAwareEntity): every query and
+ * insert is bound to the current tenant automatically, so this service no longer takes or checks
+ * a companyId. The tenant comes from the JWT via TenantContext.
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class DesignationServiceImpl implements DesignationService {
 
     private final DesignationRepository designationRepository;
-    private final InsuranceCompanyRepository insuranceCompanyRepository;
     private final DesignationMapper designationMapper;
 
     @Override
+    @PreAuthorize("hasAuthority('ORG_DESIGNATION_WRITE')")
     public DesignationResponse createDesignation(
-            Long companyId,
             CreateDesignationRequest request
     ) {
 
-        getCompanyOrThrow(companyId);
+        validateDuplicateDesignationCode(request.getCode());
 
-        validateDuplicateDesignationCode(
-                companyId,
-                request.getCode()
-        );
+        validateDuplicateDesignationName(request.getName());
 
-        validateDuplicateDesignationName(
-                companyId,
-                request.getName()
-        );
-
-        Designation designation =
-                designationMapper.toEntity(
-                        companyId,
-                        request
-                );
+        // tenant_id is set by Hibernate @TenantId on persist — do not set it here.
+        Designation designation = designationMapper.toEntity(request);
 
         Designation savedDesignation =
                 designationRepository.save(designation);
@@ -59,50 +51,35 @@ public class DesignationServiceImpl implements DesignationService {
 
     @Override
     @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('ORG_DESIGNATION_READ')")
     public DesignationResponse getDesignationById(
-            Long companyId,
             Long designationId
     ) {
 
-        getCompanyOrThrow(companyId);
-
-        Designation designation =
-                getDesignationForCompanyOrThrow(
-                        companyId,
-                        designationId
-                );
+        Designation designation = getDesignationOrThrow(designationId);
 
         return designationMapper.toResponse(designation);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<DesignationResponse> getAllDesignations(
-            Long companyId
-    ) {
-
-        getCompanyOrThrow(companyId);
+    @PreAuthorize("hasAuthority('ORG_DESIGNATION_READ')")
+    public List<DesignationResponse> getAllDesignations() {
 
         List<Designation> designations =
-                designationRepository.findAllByTenantIdAndIsDeletedFalse(companyId);
+                designationRepository.findAllByIsDeletedFalse();
 
         return designationMapper.toResponseList(designations);
     }
 
     @Override
+    @PreAuthorize("hasAuthority('ORG_DESIGNATION_WRITE')")
     public DesignationResponse updateDesignation(
-            Long companyId,
             Long designationId,
             UpdateDesignationRequest request
     ) {
 
-        getCompanyOrThrow(companyId);
-
-        Designation designation =
-                getDesignationForCompanyOrThrow(
-                        companyId,
-                        designationId
-                );
+        Designation designation = getDesignationOrThrow(designationId);
 
         designationMapper.updateEntity(
                 designation,
@@ -116,35 +93,17 @@ public class DesignationServiceImpl implements DesignationService {
     }
 
     @Override
+    @PreAuthorize("hasAuthority('ORG_DESIGNATION_WRITE')")
     public void deleteDesignation(
-            Long companyId,
             Long designationId
     ) {
 
-        getCompanyOrThrow(companyId);
-
-        Designation designation =
-                getDesignationForCompanyOrThrow(
-                        companyId,
-                        designationId
-                );
+        Designation designation = getDesignationOrThrow(designationId);
 
         designation.setIsDeleted(true);
         designation.setDeletedAt(Instant.now());
 
         designationRepository.save(designation);
-    }
-
-    private InsuranceCompany getCompanyOrThrow(Long companyId) {
-
-        return insuranceCompanyRepository
-                .findByIdAndIsDeletedFalse(companyId)
-                .orElseThrow(() ->
-                        new NotFoundException(
-                                "COMPANY_NOT_FOUND",
-                                "Insurance company not found"
-                        )
-                );
     }
 
     private Designation getDesignationOrThrow(Long designationId) {
@@ -159,30 +118,11 @@ public class DesignationServiceImpl implements DesignationService {
                 );
     }
 
-    private Designation getDesignationForCompanyOrThrow(
-            Long companyId,
-            Long designationId
-    ) {
-
-        Designation designation =
-                getDesignationOrThrow(designationId);
-
-        if (!designation.getTenantId().equals(companyId)) {
-            throw new NotFoundException(
-                    "DESIGNATION_NOT_FOUND",
-                    "Designation not found"
-            );
-        }
-
-        return designation;
-    }
-
     private void validateDuplicateDesignationCode(
-            Long companyId,
             String code
     ) {
 
-        if (designationRepository.existsByTenantIdAndCodeAndIsDeletedFalse(companyId, code)) {
+        if (designationRepository.existsByCodeAndIsDeletedFalse(code)) {
             throw new BusinessException(
                     "DESIGNATION_CODE_ALREADY_EXISTS",
                     "Designation code already exists"
@@ -191,11 +131,10 @@ public class DesignationServiceImpl implements DesignationService {
     }
 
     private void validateDuplicateDesignationName(
-            Long companyId,
             String name
     ) {
 
-        if (designationRepository.existsByTenantIdAndNameAndIsDeletedFalse(companyId, name)) {
+        if (designationRepository.existsByNameAndIsDeletedFalse(name)) {
             throw new BusinessException(
                     "DESIGNATION_NAME_ALREADY_EXISTS",
                     "Designation name already exists"

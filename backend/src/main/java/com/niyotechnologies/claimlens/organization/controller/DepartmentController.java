@@ -13,75 +13,59 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("${claimlens.api.base-path}/organizations/companies/{companyId}/departments")
+@RequestMapping("${claimlens.api.base-path}/organizations")
 public class DepartmentController {
 
     private final DepartmentService departmentService;
 
-    @PostMapping
+    @PostMapping("/departments")
     public ApiResponse<DepartmentResponse> createDepartment(
-            @PathVariable Long companyId,
             @Valid @RequestBody CreateDepartmentRequest request
     ) {
 
         return ApiResponse.success(
-                departmentService.createDepartment(
-                        companyId,
-                        request
-                )
+                departmentService.createDepartment(request)
         );
     }
 
-    @GetMapping("/{departmentId}")
+    @GetMapping("/departments/{departmentId}")
     public ApiResponse<DepartmentResponse> getDepartmentById(
-            @PathVariable Long companyId,
             @PathVariable Long departmentId
     ) {
 
         return ApiResponse.success(
-                departmentService.getDepartmentById(
-                        companyId,
-                        departmentId
-                )
+                departmentService.getDepartmentById(departmentId)
         );
     }
 
-    @GetMapping
-    public ApiResponse<List<DepartmentResponse>> getAllDepartments(
-            @PathVariable Long companyId
-    ) {
+    @GetMapping("/departments")
+    public ApiResponse<List<DepartmentResponse>> getAllDepartments() {
 
         return ApiResponse.success(
-                departmentService.getAllDepartments(companyId)
+                departmentService.getAllDepartments()
         );
     }
 
-    @PutMapping("/{departmentId}")
+    @PutMapping("/departments/{departmentId}")
     public ApiResponse<DepartmentResponse> updateDepartment(
-            @PathVariable Long companyId,
             @PathVariable Long departmentId,
             @Valid @RequestBody UpdateDepartmentRequest request
     ) {
 
         return ApiResponse.success(
                 departmentService.updateDepartment(
-                        companyId,
                         departmentId,
                         request
                 )
         );
     }
 
-    @DeleteMapping("/{departmentId}")
+    @DeleteMapping("/departments/{departmentId}")
     public ApiResponse<Void> deleteDepartment(
-            @PathVariable Long companyId,
             @PathVariable Long departmentId
     ) {
 
-        departmentService.deleteDepartment(
-                companyId,
-                departmentId
-        );
+        departmentService.deleteDepartment(departmentId);
 
         return ApiResponse.success(null);
     }

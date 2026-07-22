@@ -9,26 +9,13 @@ import java.util.List;
 
 public interface RegionService {
 
-    RegionResponse createRegion(
-            Long tenantId,
-            CreateRegionRequest request
-    );
+    RegionResponse createRegion(CreateRegionRequest request);
 
-    RegionResponse getRegion(
-            Long tenantId,
-            Long regionId
-    );
+    RegionResponse getRegion(Long regionId);
 
-    List<RegionResponse> getRegionsByCompany(Long tenantId);
+    List<RegionResponse> getRegions();
 
-    RegionResponse updateRegion(
-            Long tenantId,
-            Long regionId,
-            UpdateRegionRequest request
-    );
+    RegionResponse updateRegion(Long regionId, UpdateRegionRequest request);
 
-    void deleteRegion(
-            Long tenantId,
-            Long regionId
-    );
+    void deleteRegion(Long regionId);
 }

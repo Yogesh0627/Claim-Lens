@@ -1,0 +1,122 @@
+# ==========================================================================================
+# Render Blueprint — deploys the ClaimLens backend + image-analysis service.
+# Spec: https://render.com/docs/blueprint-spec
+#
+# HOW TO USE:
+#   1. Push this repo to GitHub.
+#   2. Render Dashboard → New → Blueprint → connect the repo. Render reads this file and
+#      creates both services.
+#   3. Fill in the secrets it prompts for (every env var marked `sync: false` below).
+#   4. After the analysis service is live, set ANALYSIS_SERVICE_URL on the backend to its URL,
+#      and after Vercel is live, set CORS_ALLOWED_ORIGINS to your Vercel domain. Redeploy.
+#
+# The database is EXTERNAL (Neon) — DATABASE_URL points at it (sync: false). Frontend is on Vercel.
+# `region: singapore` co-locates with a Neon ap-southeast-1 project — change if your DB is elsewhere.
+# ==========================================================================================
+
+services:
+  # ------------------------------------------------------------------ Backend (Spring Boot)
+  - type: web
+    name: claimlens-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: singapore
+    healthCheckPath: /actuator/health
+    autoDeploy: true
+    envVars:
+      # --- Database (external: Neon — use the DIRECT endpoint, not -pooler) ---
+      - key: DATABASE_URL
+        sync: false          # jdbc:postgresql://ep-xxxx.<region>.aws.neon.tech/neondb?sslmode=require
+      - key: DATABASE_USERNAME
+        sync: false
+      - key: DATABASE_PASSWORD
+        sync: false
+
+      # --- Auth ---
+      - key: JWT_SECRET
+        generateValue: true  # Render generates a strong random value
+
+      # --- Cache / Redis (Upstash) ---
+      # `prod` swaps the in-process Caffeine cache for Redis (application-prod.properties).
+      # Keys are namespaced "claimlens:" — safe to share one Upstash account with other apps.
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: REDIS_HOST
+        sync: false          # e.g. your-db-12345.upstash.io
+      - key: REDIS_PORT
+        value: "6379"
+      - key: REDIS_PASSWORD
+        sync: false          # Upstash password / token
+
+      # --- CORS: set to your Vercel URL after the frontend deploys ---
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false          # e.g. https://your-app.vercel.app
+
+      # --- Demo data (seeds a demo tenant + one login per role, idempotent) ---
+      - key: DEMO_SEED
+        value: "true"
+
+      # --- Object storage: Cloudflare R2 (S3-compatible) ---
+      - key: STORAGE_PROVIDER
+        value: s3
+      - key: STORAGE_S3_ENDPOINT
+        sync: false          # https://<account>.r2.cloudflarestorage.com
+      - key: STORAGE_S3_REGION
+        value: auto
+      - key: STORAGE_S3_BUCKET
+        sync: false
+      - key: STORAGE_S3_ACCESS_KEY
+        sync: false
+      - key: STORAGE_S3_SECRET_KEY
+        sync: false
+
+      # --- Email: Resend HTTP API ---
+      - key: EMAIL_PROVIDER
+        value: resend
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false          # Claimlens <noreply@your-verified-domain>
+
+      # --- OCR: Google Cloud Vision (in-JVM, no separate service) ---
+      - key: OCR_ENABLED
+        value: "true"
+      - key: OCR_PROVIDER
+        value: vision
+      - key: GOOGLE_VISION_API_KEY
+        sync: false          # project must have billing enabled
+
+      # --- AI / RAG: Gemini (falls back to an offline answer if unavailable) ---
+      - key: AI_ENABLED
+        value: "true"
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: PGVECTOR_ENABLED
+        value: "false"       # set "true" to use pgvector + HNSW on Neon
+
+      # --- Image forensics (the analysis service below) ---
+      - key: ANALYSIS_ENABLED
+        value: "true"
+      - key: ANALYSIS_SERVICE_URL
+        sync: false          # https://claimlens-analysis.onrender.com  (set after it deploys)
+
+      # --- Google sign-in (optional) ---
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+
+  # ------------------------------------------------------------- Analysis service (FastAPI)
+  - type: web
+    name: claimlens-analysis
+    runtime: docker
+    dockerfilePath: ./analysis-service/Dockerfile
+    dockerContext: ./analysis-service
+    plan: free
+    region: singapore
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # Optional: if you set this, set the same value as ANALYSIS_SHARED_SECRET on the backend.
+      - key: ANALYSIS_SHARED_SECRET
+        sync: false

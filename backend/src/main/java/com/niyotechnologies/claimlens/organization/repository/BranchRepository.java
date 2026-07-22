@@ -16,13 +16,11 @@ public interface BranchRepository
             Long id
     );
 
-    Optional<Branch> findByTenantIdAndCodeAndIsDeletedFalse(
-            Long tenantId,
+    Optional<Branch> findByCodeAndIsDeletedFalse(
             String code
     );
 
-    boolean existsByTenantIdAndCodeAndIsDeletedFalse(
-            Long tenantId,
+    boolean existsByCodeAndIsDeletedFalse(
             String code
     );
 

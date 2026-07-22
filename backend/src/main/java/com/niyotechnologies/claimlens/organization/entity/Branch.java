@@ -1,6 +1,6 @@
 package com.niyotechnologies.claimlens.organization.entity;
 
-import com.niyotechnologies.claimlens.common.entity.BaseEntity;
+import com.niyotechnologies.claimlens.common.entity.TenantAwareEntity;
 import com.niyotechnologies.claimlens.organization.enums.BranchStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -18,10 +18,7 @@ import lombok.Setter;
 )
 @Getter
 @Setter
-public class Branch extends BaseEntity {
-
-    @Column(name = "tenant_id", nullable = false)
-    private Long tenantId;
+public class Branch extends TenantAwareEntity {
 
     @Column(name = "region_id", nullable = false)
     private Long regionId;

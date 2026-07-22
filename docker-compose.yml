@@ -1,0 +1,64 @@
+# ClaimLens local infrastructure.
+#
+#   docker compose up -d            -> postgres + redis only (the default dev loop;
+#                                      run the backend with ./mvnw for fast iteration)
+#   docker compose --profile full up -> also build & run the backend container
+#
+# More services (frontend, python-worker, prometheus, grafana) get added behind their
+# own profiles as each acquires real code — see the build plan, Phase 0.5 / Phase 13.
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: claimlens-postgres
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-claimlens_db}
+      POSTGRES_USER: ${DATABASE_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - claimlens_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USERNAME:-postgres} -d ${DATABASE_NAME:-claimlens_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: claimlens-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    profiles: ["full"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: claimlens-backend
+    environment:
+      # Inside the compose network, reach postgres by service name.
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${DATABASE_NAME:-claimlens_db}
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-postgres}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-postgres}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  claimlens_pgdata:

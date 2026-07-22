@@ -13,75 +13,59 @@ import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("${claimlens.api.base-path}/organizations/companies/{companyId}/designations")
+@RequestMapping("${claimlens.api.base-path}/organizations")
 public class DesignationController {
 
     private final DesignationService designationService;
 
-    @PostMapping
+    @PostMapping("/designations")
     public ApiResponse<DesignationResponse> createDesignation(
-            @PathVariable Long companyId,
             @Valid @RequestBody CreateDesignationRequest request
     ) {
 
         return ApiResponse.success(
-                designationService.createDesignation(
-                        companyId,
-                        request
-                )
+                designationService.createDesignation(request)
         );
     }
 
-    @GetMapping("/{designationId}")
+    @GetMapping("/designations/{designationId}")
     public ApiResponse<DesignationResponse> getDesignationById(
-            @PathVariable Long companyId,
             @PathVariable Long designationId
     ) {
 
         return ApiResponse.success(
-                designationService.getDesignationById(
-                        companyId,
-                        designationId
-                )
+                designationService.getDesignationById(designationId)
         );
     }
 
-    @GetMapping
-    public ApiResponse<List<DesignationResponse>> getAllDesignations(
-            @PathVariable Long companyId
-    ) {
+    @GetMapping("/designations")
+    public ApiResponse<List<DesignationResponse>> getAllDesignations() {
 
         return ApiResponse.success(
-                designationService.getAllDesignations(companyId)
+                designationService.getAllDesignations()
         );
     }
 
-    @PutMapping("/{designationId}")
+    @PutMapping("/designations/{designationId}")
     public ApiResponse<DesignationResponse> updateDesignation(
-            @PathVariable Long companyId,
             @PathVariable Long designationId,
             @Valid @RequestBody UpdateDesignationRequest request
     ) {
 
         return ApiResponse.success(
                 designationService.updateDesignation(
-                        companyId,
                         designationId,
                         request
                 )
         );
     }
 
-    @DeleteMapping("/{designationId}")
+    @DeleteMapping("/designations/{designationId}")
     public ApiResponse<Void> deleteDesignation(
-            @PathVariable Long companyId,
             @PathVariable Long designationId
     ) {
 
-        designationService.deleteDesignation(
-                companyId,
-                designationId
-        );
+        designationService.deleteDesignation(designationId);
 
         return ApiResponse.success(null);
     }

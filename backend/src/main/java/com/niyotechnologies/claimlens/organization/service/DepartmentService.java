@@ -9,26 +9,20 @@ import java.util.List;
 public interface DepartmentService {
 
     DepartmentResponse createDepartment(
-            Long companyId,
             CreateDepartmentRequest request
     );
 
     DepartmentResponse updateDepartment(
-            Long companyId,
             Long departmentId,
             UpdateDepartmentRequest request
     );
 
     DepartmentResponse getDepartmentById(
-            Long companyId,
             Long departmentId
     );
 
-    List<DepartmentResponse> getAllDepartments(
-            Long companyId
-    );
+    List<DepartmentResponse> getAllDepartments();
 
     void deleteDepartment(
-            Long companyId,
             Long departmentId
     );}

@@ -7,28 +7,19 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * All queries are automatically scoped to the current tenant by Hibernate @TenantId, so no
+ * method needs a tenantId parameter.
+ */
 @Repository
 public interface RegionRepository
         extends JpaRepository<Region, Long> {
 
-    Optional<Region> findByTenantIdAndCodeAndIsDeletedFalse(
-            Long tenantId,
-            String code
-    );
+    Optional<Region> findByCodeAndIsDeletedFalse(String code);
 
-    boolean existsByTenantIdAndCodeAndIsDeletedFalse(
-            Long tenantId,
-            String code
-    );
+    boolean existsByCodeAndIsDeletedFalse(String code);
 
-    Optional<Region>
-    findByIdAndIsDeletedFalse(
-            Long id
-    );
+    Optional<Region> findByIdAndIsDeletedFalse(Long id);
 
-    List<Region> findAllByTenantIdAndIsDeletedFalse(Long tenantId);
-
-
-
-
+    List<Region> findAllByIsDeletedFalse();
 }

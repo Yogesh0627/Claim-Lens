@@ -1,0 +1,49 @@
+---
+title: "OCR, Image Forensics and RAG: The Tech Behind Faster, Fairer Claims"
+description: "A closer look at the three technologies doing the heavy lifting inside a modern claims platform — document OCR, lightweight image forensics, and retrieval-augmented AI."
+date: "2026-07-10"
+category: "Technology"
+author: "ClaimLens Team"
+tags:
+  - ocr
+  - ai
+  - rag
+  - image-forensics
+---
+
+# OCR, Image Forensics and RAG: The Tech Behind Faster, Fairer Claims
+
+"Automated claims processing" is an umbrella phrase. Under it sit three fairly different technologies, each solving one concrete problem. Here is what each one actually does — and, just as important, what it deliberately does *not* do.
+
+## 1. OCR — turning documents into data
+
+The problem: claim evidence arrives as images and PDFs — an RC book photo, a scanned FIR, a repair estimate. A computer cannot act on a picture of text; it needs the text.
+
+**Optical Character Recognition** reads the pixels back into characters. But raw text is only half the job. A claims platform then runs *field extraction* over that text — permissive regular expressions that pull out the registration number (across all the ways OCR mangles spacing), the policy number, amounts and dates. Those fields are what the fraud rules compare against the policy on record.
+
+The important design choice: OCR output is a **signal, not ground truth**. OCR is noisy. So the extracted registration is treated as "what the document probably says," to be checked against the policy — never as an authoritative value.
+
+## 2. Image forensics — cheap signals, honest limits
+
+You do not need deep learning to catch the most common photo fraud. Three lightweight techniques cover a lot of ground:
+
+- **Perceptual hashing** for duplicate detection — a fingerprint that survives resizing and recompression, so a reused photo is caught even after it has been through a messaging app.
+- **Feature matching** (ORB keypoints) for near-duplicate detection — catches lightly-edited reuse that hashing alone misses.
+- **EXIF metadata** as a three-state check — consistent, inconsistent, or *unknown*. Only genuine inconsistency (a capture time before the incident) counts against a claim. Missing metadata is normal and must never raise suspicion.
+
+There is also an emerging frontier — **AI-generated damage photos**. Here honesty matters: no detector is reliable enough to auto-reject on. So synthetic-image checks are always a *soft signal* for an investigator, never a verdict. Designing that limitation in from the start is what separates a responsible system from a reckless one.
+
+## 3. RAG — answering questions from the policy itself
+
+The last piece answers a different kind of question: "Does this policy cover a cracked windshield?"
+
+A naive approach asks a language model and hopes. The problem is that models answer confidently from training data and happily invent details they don't have. **Retrieval-Augmented Generation (RAG)** fixes this by retrieving the relevant passages *from the actual policy wording* and instructing the model to answer only from them — with citations back to the clauses.
+
+Two things make it trustworthy in a claims context:
+
+1. **Grounding.** The answer comes from *this* policy's text, not the model's general knowledge.
+2. **Version pinning.** Retrieval is scoped to the exact policy version the customer bought, so the answer reflects the terms they actually contracted under — not whatever the product looks like today.
+
+## The common thread
+
+None of these technologies *decides* a claim. OCR reads, forensics flags, RAG explains — and a human judges. Each is engineered to be a well-behaved input to a decision a person still owns. That restraint is not a limitation of the tech; it is the point. In insurance, an automated decision you cannot explain is worse than no automation at all.

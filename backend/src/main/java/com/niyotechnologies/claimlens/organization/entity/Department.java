@@ -1,6 +1,6 @@
 package com.niyotechnologies.claimlens.organization.entity;
 
-import com.niyotechnologies.claimlens.common.entity.BaseEntity;
+import com.niyotechnologies.claimlens.common.entity.TenantAwareEntity;
 import com.niyotechnologies.claimlens.organization.enums.DepartmentStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -10,10 +10,7 @@ import lombok.Setter;
 @Table(name = "department")
 @Getter
 @Setter
-public class Department extends BaseEntity {
-
-    @Column(name = "tenant_id", nullable = false)
-    private Long tenantId;
+public class Department extends TenantAwareEntity {
 
     @Column(nullable = false, length = 50)
     private String code;

@@ -2,6 +2,7 @@ package com.niyotechnologies.claimlens.organization.dto.request;
 
 import com.niyotechnologies.claimlens.organization.enums.SubscriptionPlan;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -20,7 +21,9 @@ public class UpdateInsuranceCompanyRequest {
 
     private String headOfficeAddress;
 
-    @NotBlank(message = "Subscription plan is required")
+    // @NotNull (not @NotBlank): SubscriptionPlan is an enum; @NotBlank has no validator
+    // for non-CharSequence types and throws at request-validation time.
+    @NotNull(message = "Subscription plan is required")
     private SubscriptionPlan subscriptionPlan;
 
     @NotBlank(message = "Currency is required")

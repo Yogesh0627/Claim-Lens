@@ -2,9 +2,7 @@ package com.niyotechnologies.claimlens.organization.mapper;
 
 import com.niyotechnologies.claimlens.organization.dto.request.CreateDepartmentRequest;
 import com.niyotechnologies.claimlens.organization.dto.request.UpdateDepartmentRequest;
-import com.niyotechnologies.claimlens.organization.dto.response.BranchResponse;
 import com.niyotechnologies.claimlens.organization.dto.response.DepartmentResponse;
-import com.niyotechnologies.claimlens.organization.entity.Branch;
 import com.niyotechnologies.claimlens.organization.entity.Department;
 import com.niyotechnologies.claimlens.organization.enums.DepartmentStatus;
 import org.springframework.stereotype.Component;
@@ -29,13 +27,12 @@ public class DepartmentMapper {
 
 
     public Department toEntity(
-            Long companyId,
             CreateDepartmentRequest request
     ) {
 
         Department department = new Department();
 
-        department.setTenantId(companyId);
+        // tenant_id is populated by Hibernate @TenantId on persist — not set here.
         department.setCode(request.getCode().trim());
         department.setName(request.getName().trim());
 

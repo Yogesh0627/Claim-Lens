@@ -15,49 +15,46 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-//@RequestMapping("/api/v1/organizations")
-@RequestMapping("${claimlens.api.base-path}/organizations/companies")
+@RequestMapping("${claimlens.api.base-path}/organizations")
 @RequiredArgsConstructor
 public class BranchController {
 
     @Autowired
     private final BranchService branchService;
 
-    @PostMapping("/{companyId}/regions/{regionId}/branches")
+    @PostMapping("/regions/{regionId}/branches")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<BranchResponse> createBranch(
-            @PathVariable Long companyId,
             @PathVariable Long regionId,
             @Valid @RequestBody CreateBranchRequest request
     ){
 
         return ApiResponse.success(
-                branchService.createBranch(companyId,regionId,request)
+                branchService.createBranch(regionId, request)
         );
     }
 
-    @GetMapping("/{companyId}/regions/{regionId}/branches/{branchId}")
+    @GetMapping("/regions/{regionId}/branches/{branchId}")
     @ResponseStatus(HttpStatus.OK)
-    public ApiResponse<BranchResponse> getBranch(@PathVariable Long companyId, @PathVariable Long regionId, @PathVariable Long branchId){
+    public ApiResponse<BranchResponse> getBranch(@PathVariable Long regionId, @PathVariable Long branchId){
 
-        BranchResponse branch = branchService.getBranch(companyId, regionId, branchId);
+        BranchResponse branch = branchService.getBranch(regionId, branchId);
 
         return ApiResponse.success(branch);
     }
 
 
-    @GetMapping("/{companyId}/regions/{regionId}/branches")
+    @GetMapping("/regions/{regionId}/branches")
     public ApiResponse<List<BranchResponse>>
-    getAllBranches(@PathVariable Long companyId, @PathVariable Long regionId) {
+    getAllBranches(@PathVariable Long regionId) {
 
         return ApiResponse.success(
-                branchService.getBranchesByRegion(companyId, regionId)
+                branchService.getBranchesByRegion(regionId)
         );
     }
 
-    @PutMapping("/{companyId}/regions/{regionId}/branches/{branchId}")
+    @PutMapping("/regions/{regionId}/branches/{branchId}")
     public ApiResponse<BranchResponse> updateBranch(
-            @PathVariable Long companyId,
             @PathVariable Long regionId,
             @PathVariable Long branchId,
             @Valid @RequestBody UpdateBranchRequest request
@@ -65,7 +62,6 @@ public class BranchController {
 
         return ApiResponse.success(
                 branchService.updateBranch(
-                        companyId,
                         regionId,
                         branchId,
                         request
@@ -73,14 +69,13 @@ public class BranchController {
         );
     }
 
-    @DeleteMapping("/{companyId}/regions/{regionId}/branches/{branchId}")
+    @DeleteMapping("/regions/{regionId}/branches/{branchId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteBranch(
-            @PathVariable Long companyId,
             @PathVariable Long regionId,
             @PathVariable Long branchId
     ) {
         branchService
-                .deleteBranch(companyId, regionId, branchId);
+                .deleteBranch(regionId, branchId);
     }
 }

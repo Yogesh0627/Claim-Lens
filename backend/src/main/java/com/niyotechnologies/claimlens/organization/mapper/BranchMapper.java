@@ -13,14 +13,13 @@ import java.util.List;
 public class BranchMapper {
 
     public Branch toEntity(
-            Long tenantId,
             Long regionId,
             CreateBranchRequest request
     ) {
 
         Branch branch = new Branch();
 
-        branch.setTenantId(tenantId);
+        // tenant_id is populated by Hibernate @TenantId on persist — not set here.
         branch.setRegionId(regionId);
 
         branch.setCode(request.getCode().trim());

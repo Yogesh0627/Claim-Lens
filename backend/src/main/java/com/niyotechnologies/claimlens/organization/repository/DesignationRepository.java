@@ -10,15 +10,9 @@ public interface DesignationRepository extends JpaRepository<Designation, Long> 
 
     Optional<Designation> findByIdAndIsDeletedFalse(Long id);
 
-    List<Designation> findAllByTenantIdAndIsDeletedFalse(Long tenantId);
+    List<Designation> findAllByIsDeletedFalse();
 
-    boolean existsByTenantIdAndCodeAndIsDeletedFalse(
-            Long tenantId,
-            String code
-    );
+    boolean existsByCodeAndIsDeletedFalse(String code);
 
-    boolean existsByTenantIdAndNameAndIsDeletedFalse(
-            Long tenantId,
-            String name
-    );
+    boolean existsByNameAndIsDeletedFalse(String name);
 }

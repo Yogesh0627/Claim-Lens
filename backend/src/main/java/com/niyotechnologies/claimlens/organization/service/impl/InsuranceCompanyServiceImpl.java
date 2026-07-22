@@ -6,12 +6,12 @@ import com.niyotechnologies.claimlens.organization.dto.request.CreateInsuranceCo
 import com.niyotechnologies.claimlens.organization.dto.request.UpdateInsuranceCompanyRequest;
 import com.niyotechnologies.claimlens.organization.dto.response.InsuranceCompanyResponse;
 import com.niyotechnologies.claimlens.organization.entity.InsuranceCompany;
-import com.niyotechnologies.claimlens.organization.enums.InsuranceCompanyStatus;
 import com.niyotechnologies.claimlens.organization.mapper.InsuranceCompanyMapper;
 import com.niyotechnologies.claimlens.organization.repository.InsuranceCompanyRepository;
-import com.niyotechnologies.claimlens.organization.service.OrganizationService;
+import com.niyotechnologies.claimlens.organization.service.InsuranceCompanyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,7 +22,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Transactional
 public class InsuranceCompanyServiceImpl
-        implements OrganizationService {
+        implements InsuranceCompanyService {
 
     @Autowired
     private final InsuranceCompanyRepository insuranceCompanyRepository;
@@ -32,6 +32,7 @@ public class InsuranceCompanyServiceImpl
 
 
     @Override
+    @PreAuthorize("hasAuthority('ORG_COMPANY_WRITE')")
     public InsuranceCompanyResponse createInsuranceCompany(
             CreateInsuranceCompanyRequest request
     ) {
@@ -75,6 +76,7 @@ public class InsuranceCompanyServiceImpl
 
     @Override
     @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('ORG_COMPANY_READ')")
     public InsuranceCompanyResponse getInsuranceCompanyById(
             Long companyId
     ) {
@@ -86,6 +88,7 @@ public class InsuranceCompanyServiceImpl
 
     @Override
     @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('ORG_COMPANY_READ')")
     public List<InsuranceCompanyResponse> getAllCompanies(){
 
         List <InsuranceCompany> companies = insuranceCompanyRepository.findAllByIsDeletedFalse();
@@ -107,6 +110,7 @@ public class InsuranceCompanyServiceImpl
 
 
     @Override
+    @PreAuthorize("hasAuthority('ORG_COMPANY_WRITE')")
     public InsuranceCompanyResponse updateInsuranceCompany(
             Long companyId,
             UpdateInsuranceCompanyRequest request
@@ -114,6 +118,8 @@ public class InsuranceCompanyServiceImpl
 
         InsuranceCompany company =
                 getCompanyOrThrow(companyId);
+
+        insuranceCompanyMapper.updateEntity(company, request);
 
         InsuranceCompany updatedCompany =
                 insuranceCompanyRepository.save(company);
@@ -123,6 +129,7 @@ public class InsuranceCompanyServiceImpl
     }
 
     @Override
+    @PreAuthorize("hasAuthority('ORG_COMPANY_WRITE')")
     public void deleteInsuranceCompany(Long companyId){
 
         InsuranceCompany company =
