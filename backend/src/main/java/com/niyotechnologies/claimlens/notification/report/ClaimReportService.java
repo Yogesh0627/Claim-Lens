@@ -50,6 +50,7 @@ public class ClaimReportService {
             case SUBMITTED -> "Claim " + c + " received";
             case ASSIGNED -> "New claim assigned — " + c;
             case INFO_REQUESTED -> "More information needed for claim " + c;
+            case CUSTOMER_RESPONDED -> "New information received for claim " + c;
             case APPROVED -> "Claim " + c + " approved ✅";
             case REJECTED -> "An update on claim " + c;
         };
