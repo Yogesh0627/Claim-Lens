@@ -68,33 +68,38 @@ export function DemoAccounts() {
   };
 
   return (
-    <Card className="w-full max-w-sm">
+    // h-full + flex so the card matches the sign-in form's height and the password hint can sit
+    // against the bottom edge rather than leaving a gap under it.
+    <Card className="flex h-full w-full flex-col">
       <CardHeader className="pb-2">
         <CardTitle className="text-sm">Explore as… — demo accounts</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2">
-        {ACCOUNTS.map((a) => (
-          <Button
-            key={a.email}
-            type="button"
-            variant="outline"
-            onClick={() => signIn(a.email)}
-            disabled={busy !== null}
-            className="group h-auto w-full justify-between gap-3 px-3 py-2 text-left font-normal"
-          >
-            <span className="min-w-0">
-              <span className="block text-sm font-medium">{a.role}</span>
-              <span className="text-muted-foreground block truncate text-xs font-normal">
-                {a.desc}
+      <CardContent className="flex flex-1 flex-col">
+        {/* Two columns: eight roles stacked vertically made the page scroll. A 2x4 grid halves the
+            height so the whole sign-in view fits on screen. Single column on very narrow phones,
+            where two would truncate the role names to uselessness. */}
+        <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2">
+          {ACCOUNTS.map((a) => (
+            <Button
+              key={a.email}
+              type="button"
+              variant="outline"
+              onClick={() => signIn(a.email)}
+              disabled={busy !== null}
+              title={`${a.role} · ${a.desc}`}
+              className="group h-auto w-full flex-col items-start gap-0.5 px-3 py-2 text-left font-normal"
+            >
+              <span className="flex w-full items-center gap-1">
+                <span className="truncate text-xs font-medium">{a.role}</span>
+                <ArrowRight className="text-muted-foreground group-hover:text-foreground ml-auto h-3 w-3 shrink-0" />
               </span>
-            </span>
-            <span className="text-muted-foreground group-hover:text-foreground flex shrink-0 items-center gap-1 text-xs">
-              {busy === a.email ? "Signing in…" : "Sign in"}
-              <ArrowRight className="h-3 w-3" />
-            </span>
-          </Button>
-        ))}
-        <p className="text-muted-foreground pt-1 text-xs">
+              <span className="text-muted-foreground w-full truncate text-[11px] font-normal">
+                {busy === a.email ? "Signing in…" : a.desc}
+              </span>
+            </Button>
+          ))}
+        </div>
+        <p className="text-muted-foreground mt-auto pt-3 text-xs">
           Sandbox accounts · password{" "}
           <code className="bg-muted rounded px-1 py-0.5">{DEMO_PASSWORD}</code>
         </p>

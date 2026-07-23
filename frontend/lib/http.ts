@@ -2,7 +2,7 @@
  * The single axios instance every service uses. Responsibilities:
  *  - attach the Bearer access token on each request,
  *  - transparently refresh a 401'd access token once (single-flight) and retry,
- *  - on unrecoverable auth failure, clear tokens and bounce to /login,
+ *  - on unrecoverable auth failure, clear tokens and bounce to /sign-in,
  *  - normalise backend errors ({ code, message, errors }) into a typed ApiError.
  *
  * The ApiResponse envelope ({ success, data }) is unwrapped by each service, not here, so callers
@@ -72,10 +72,10 @@ async function refreshAccessToken(): Promise<string> {
   return payload.accessToken as string;
 }
 
-function redirectToLogin(): void {
+function redirectToSignIn(): void {
   clearTokens();
-  if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
-    window.location.assign("/login");
+  if (typeof window !== "undefined" && !window.location.pathname.startsWith("/sign-in")) {
+    window.location.assign("/sign-in");
   }
 }
 
@@ -115,12 +115,12 @@ http.interceptors.response.use(
         return http(original);
       } catch {
         refreshPromise = null;
-        redirectToLogin();
+        redirectToSignIn();
       }
     }
 
     if (status === 401 && !isAuthCall) {
-      redirectToLogin();
+      redirectToSignIn();
     }
 
     const body = error.response?.data;

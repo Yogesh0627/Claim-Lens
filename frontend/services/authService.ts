@@ -20,4 +20,14 @@ export const authService = {
   async logout(refreshToken: string): Promise<void> {
     await http.post("/auth/logout", { refreshToken });
   },
+
+  /** Redeem an invitation or reset link. The token is the credential — no session needed. */
+  async setPassword(token: string, password: string): Promise<void> {
+    await http.post("/auth/set-password", { token, password });
+  },
+
+  /** Always resolves, whether or not the address has an account (no enumeration). */
+  async forgotPassword(email: string): Promise<void> {
+    await http.post("/auth/forgot-password", { email });
+  },
 };

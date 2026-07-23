@@ -6,7 +6,8 @@ import { getAllPosts } from "@/lib/blog";
 import { formatDate } from "@/lib/dayjs";
 
 export const metadata: Metadata = {
-  title: "Blog — ClaimLens",
+  // No brand suffix here — the root layout's title template appends " · ClaimLens".
+  title: "Blog",
   description:
     "Notes on motor-insurance claims, fraud detection, and how ClaimLens automates the busywork of claims processing.",
 };

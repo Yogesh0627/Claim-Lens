@@ -1,7 +1,10 @@
 package com.niyotechnologies.claimlens.user.service.impl;
 
+import com.niyotechnologies.claimlens.auth.enums.InvitationPurpose;
+import com.niyotechnologies.claimlens.auth.service.InvitationService;
 import com.niyotechnologies.claimlens.common.exception.BusinessException;
 import com.niyotechnologies.claimlens.common.exception.NotFoundException;
+import com.niyotechnologies.claimlens.customer.repository.CustomerRepository;
 import com.niyotechnologies.claimlens.role.entity.Role;
 import com.niyotechnologies.claimlens.role.repository.RoleRepository;
 import com.niyotechnologies.claimlens.user.dto.CreateUserRequest;
@@ -29,12 +32,19 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
+    /** The seeded role whose users are policyholders rather than staff. */
+    private static final String CUSTOMER_ROLE_CODE = "CUSTOMER";
+
     @Autowired
     private final AppUserRepository appUserRepository;
     @Autowired
     private final RoleRepository roleRepository;
     @Autowired
     private final PasswordEncoder passwordEncoder;
+    @Autowired
+    private final CustomerRepository customerRepository;
+    @Autowired
+    private final InvitationService invitationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -75,6 +85,7 @@ public class UserServiceImpl implements UserService {
         user.setEmployeeCode(request.employeeCode());
         user.setPhone(request.phone());
         user.setRoleId(role.getId());
+        user.setCustomerId(resolveCustomerId(request, role));
         user.setAuthProvider(AuthProvider.LOCAL);
         if (StringUtils.hasText(request.password())) {
             user.setPasswordHash(passwordEncoder.encode(request.password()));
@@ -83,7 +94,38 @@ public class UserServiceImpl implements UserService {
             user.setStatus(UserStatus.INVITED);
         }
         // tenant_id is stamped automatically by @TenantId on insert.
-        return toResponse(roleCodeMap()).apply(appUserRepository.save(user));
+        AppUser saved = appUserRepository.save(user);
+
+        // No password supplied -> the account is INVITED and unusable until the person sets one, so
+        // email them a single-use link. Without this, INVITED was a dead end.
+        if (saved.getStatus() == UserStatus.INVITED) {
+            invitationService.invite(saved, InvitationPurpose.INVITE);
+        }
+        return toResponse(roleCodeMap()).apply(saved);
+    }
+
+    /**
+     * A CUSTOMER login is worthless unless it points at a policyholder — the portal scopes every read
+     * by customer_id, so a null one means an empty portal. Staff, conversely, must never carry one.
+     * Enforcing both directions here keeps orphaned portal accounts from being created at all.
+     */
+    private Long resolveCustomerId(CreateUserRequest request, Role role) {
+        boolean isCustomerRole = CUSTOMER_ROLE_CODE.equals(role.getCode());
+        if (!isCustomerRole) {
+            if (request.customerId() != null) {
+                throw new BusinessException("CUSTOMER_ID_NOT_ALLOWED",
+                        "Only a CUSTOMER user can be linked to a customer");
+            }
+            return null;
+        }
+        if (request.customerId() == null) {
+            throw new BusinessException("CUSTOMER_ID_REQUIRED",
+                    "A CUSTOMER user must be linked to a customer");
+        }
+        // Tenant-scoped lookup: you cannot link a login to another tenant's customer.
+        customerRepository.findByIdAndIsDeletedFalse(request.customerId())
+                .orElseThrow(() -> new NotFoundException("CUSTOMER_NOT_FOUND", "Customer not found"));
+        return request.customerId();
     }
 
     @Override

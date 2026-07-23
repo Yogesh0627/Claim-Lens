@@ -9,10 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { GoogleSignIn } from "@/components/google-signin";
+import { ForgotPasswordDialog } from "@/components/auth/forgot-password-dialog";
 import { DemoAccounts } from "@/components/demo-accounts";
-import { AppFooter } from "@/components/app-footer";
 import { useAppDispatch } from "@/hooks/redux";
 import { useAuth } from "@/hooks/useAuth";
 import { login } from "@/store/authSlice";
@@ -34,7 +33,7 @@ export default function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm<LoginForm>({ defaultValues: { email: "", password: "" } });
 
-  // Already logged in (e.g. navigated back to /login) -> bounce to the app.
+  // Already signed in (e.g. navigated back to /sign-in) -> bounce to the app.
   useEffect(() => {
     if (status === "authenticated") {
       router.replace(homePathFor(permissions));
@@ -51,12 +50,15 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="bg-muted/40 flex min-h-screen flex-col">
-      <div className="absolute top-4 right-4">
-        <ThemeToggle />
-      </div>
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 p-4 py-8">
-        <Card className="w-full max-w-sm">
+    // flex-1, not min-h-screen: the layout supplies the header and footer, so a full-viewport
+    // block here would push the footer below the fold. The theme toggle lives in the header.
+    <div className="bg-muted/40 flex flex-1 flex-col">
+      {/* Two columns from `lg` up so the form and the demo accounts sit side by side and the page
+          fits without scrolling; they stack on narrow screens where side-by-side would squash both.
+          The grid's default align-items:stretch gives both cards the same height. */}
+      <div className="flex flex-1 items-center justify-center p-4 py-8">
+        <div className="grid w-full max-w-4xl justify-items-center gap-6 lg:grid-cols-2 lg:justify-items-stretch">
+          <Card className="w-full max-w-sm lg:h-full lg:justify-self-end">
           <CardHeader className="space-y-1 text-center">
             <div className="bg-primary text-primary-foreground mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-xl">
               <ShieldCheck className="h-6 w-6" />
@@ -80,7 +82,10 @@ export default function LoginPage() {
                 ) : null}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Password</Label>
+                  <ForgotPasswordDialog />
+                </div>
                 <Input
                   id="password"
                   type="password"
@@ -104,9 +109,13 @@ export default function LoginPage() {
             <GoogleSignIn />
           </CardContent>
         </Card>
-        <DemoAccounts />
+
+        {/* Wider than the form: it holds a 2x4 grid of roles, the form is a single column. */}
+        <div className="w-full max-w-sm lg:h-full lg:max-w-md lg:justify-self-start">
+          <DemoAccounts />
+        </div>
+        </div>
       </div>
-      <AppFooter />
     </div>
   );
 }

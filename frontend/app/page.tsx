@@ -119,7 +119,7 @@ const TESTIMONIALS = [
 
 export default function LandingPage() {
   const { status, permissions } = useAuth();
-  const appHref = status === "authenticated" ? homePathFor(permissions) : "/login";
+  const appHref = status === "authenticated" ? homePathFor(permissions) : "/sign-in";
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -156,7 +156,7 @@ export default function LandingPage() {
           <div className="from-primary/5 pointer-events-none absolute inset-0 bg-linear-to-b to-transparent" />
           <div className="relative mx-auto w-full max-w-6xl px-4 py-20 text-center sm:py-28">
             <span className="bg-primary/10 text-primary mb-5 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium">
-              <Sparkles className="h-3.5 w-3.5" /> Multi-tenant motor-insurance claims platform
+              <Sparkles className="h-3.5 w-3.5" /> Motor-insurance claims, automated end to end
             </span>
             <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight text-balance sm:text-5xl">
               Investigate faster. Decide smarter.

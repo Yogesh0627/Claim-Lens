@@ -3,6 +3,7 @@ package com.niyotechnologies.claimlens.user.repository;
 import com.niyotechnologies.claimlens.user.entity.AppUser;
 import com.niyotechnologies.claimlens.user.enums.UserStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -32,6 +33,18 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
     @Query(value = "SELECT * FROM app_user WHERE id = :id AND is_deleted = false",
             nativeQuery = true)
     Optional<AppUser> findByIdForAuthentication(@Param("id") Long id);
+
+    /**
+     * Set a password (and activate) from an ANONYMOUS request — redeeming an invitation or reset
+     * link. Native for the same reason as the lookups above: there is no tenant in context, so a
+     * JPA update on this @TenantId entity would be scoped to the wrong tenant and touch no rows.
+     */
+    @Modifying(clearAutomatically = true)
+    @Query(value = "UPDATE app_user SET password_hash = :passwordHash, status = :status "
+            + "WHERE id = :id AND is_deleted = false", nativeQuery = true)
+    int updateCredentialsForAuthentication(@Param("id") Long id,
+                                           @Param("passwordHash") String passwordHash,
+                                           @Param("status") String status);
 
     // Tenant-scoped by @TenantId (only sees the current tenant's users).
     Optional<AppUser> findByIdAndIsDeletedFalse(Long id);

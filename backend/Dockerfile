@@ -17,6 +17,13 @@ RUN mvn -q -B clean package -DskipTests
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 
+# Fonts for PDF generation. The claim-report PDF is rendered with openhtmltopdf/PDFBox, which needs
+# real fonts on the system; the JRE image ships none, so without this the PDF comes out with missing
+# glyphs (and PDFBox logs a font-cache warning on every render).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends fontconfig fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy the built fat jar (exclude the plain jar Spring Boot also produces).
 COPY --from=build /app/target/*.jar app.jar
 

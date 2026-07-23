@@ -22,6 +22,7 @@ import {
 import { useAsync } from "@/hooks/useAsync";
 import { useMutation } from "@/hooks/useMutation";
 import { userService } from "@/services/userService";
+import { customerService } from "@/services/customerService";
 import { roleService } from "@/services/miscService";
 import { optionLabel } from "@/lib/enums";
 import type { UserResponse } from "@/lib/types";
@@ -35,7 +36,11 @@ interface UserForm {
   roleCode: string;
   password: string;
   status: string;
+  customerId: string;
 }
+
+/** A CUSTOMER login must point at a policyholder — the portal scopes every read by it. */
+const CUSTOMER_ROLE = "CUSTOMER";
 
 const STATUSES = ["ACTIVE", "SUSPENDED", "TERMINATED", "INVITED"] as const;
 
@@ -59,6 +64,14 @@ export function UserFormDialog({
   const { data: roles } = useAsync(() => roleService.list(), []);
   const assignableRoles = (roles ?? []).filter((r) => r.code !== "PLATFORM_ADMIN");
 
+  const isCustomerRole = roleCode === CUSTOMER_ROLE;
+  const customerId = watch("customerId");
+  // Only fetched when it's actually needed — creating a portal login.
+  const { data: customers } = useAsync(
+    () => (open && isCustomerRole && !isEdit ? customerService.list() : Promise.resolve([])),
+    [open, isCustomerRole, isEdit],
+  );
+
   useEffect(() => {
     reset({
       email: user?.email ?? "",
@@ -69,6 +82,7 @@ export function UserFormDialog({
       roleCode: user?.roleCode ?? "",
       password: "",
       status: user?.status ?? "ACTIVE",
+      customerId: "",
     });
   }, [user, reset, open]);
 
@@ -90,6 +104,8 @@ export function UserFormDialog({
             phone: v.phone || null,
             roleCode: v.roleCode,
             password: v.password || null,
+            // Only a CUSTOMER carries one; the backend rejects it on staff roles.
+            customerId: v.roleCode === CUSTOMER_ROLE && v.customerId ? Number(v.customerId) : null,
           }),
     {
       successMessage: isEdit ? "User updated" : "User created",
@@ -158,6 +174,34 @@ export function UserFormDialog({
               </Field>
             )}
           </div>
+
+          {/* A portal login is useless unless it points at a policyholder, so this is required
+              whenever the role is CUSTOMER — the backend rejects the request otherwise. */}
+          {!isEdit && isCustomerRole ? (
+            <Field label="Policyholder" required>
+              <Select value={customerId} onValueChange={(v) => setValue("customerId", v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select the customer this login belongs to" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(customers ?? []).map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.firstName} {c.lastName ?? ""} · {c.customerNumber}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-muted-foreground text-xs">
+                The customer portal only shows claims and policies belonging to this person.
+              </p>
+            </Field>
+          ) : null}
+
+          <p className="text-muted-foreground text-xs">
+            {isEdit
+              ? null
+              : "Leave the password blank and we'll email them a link to set their own — nobody else ever knows it."}
+          </p>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel

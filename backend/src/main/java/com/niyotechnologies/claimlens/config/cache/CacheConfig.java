@@ -59,9 +59,13 @@ public class CacheConfig {
         ObjectMapper mapper = new ObjectMapper();
         mapper.registerModule(new JavaTimeModule());
         mapper.activateDefaultTyping(
+                // allowIfSubType, NOT allowIfBaseType. Cache values are declared as Object, so the
+                // BASE type is always java.lang.Object and a base-type rule matches nothing — writes
+                // succeed but every read is denied, turning the cache into a silent 100% miss. The
+                // check that matters is on the concrete type being resolved (e.g. java.util.HashSet).
                 BasicPolymorphicTypeValidator.builder()
-                        .allowIfBaseType("com.niyotechnologies.claimlens.")
-                        .allowIfBaseType("java.util.")
+                        .allowIfSubType("com.niyotechnologies.claimlens.")
+                        .allowIfSubType("java.util.")
                         .build(),
                 ObjectMapper.DefaultTyping.NON_FINAL,
                 JsonTypeInfo.As.PROPERTY);

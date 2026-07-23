@@ -20,11 +20,15 @@ import java.util.Locale;
 @Component
 public class ClaimReportRenderer {
 
-    private static final String BRAND = "#4f46e5";
-    private static final String BRAND_DARK = "#4338ca";
-    private static final String INK = "#111827";
-    private static final String MUTED = "#6b7280";
-    private static final String LINE = "#e5e7eb";
+    // Matches the app's theme, which is fully neutral (every CSS token is chroma 0 — there is no
+    // accent hue). BRAND is --primary oklch(0.205 0 0) = #171717, resolved to hex because email
+    // clients can't read CSS variables. Status colours below stay green/amber/red: those carry
+    // meaning rather than branding.
+    private static final String BRAND = "#171717";
+    private static final String BRAND_DARK = "#404040";
+    private static final String INK = "#0a0a0a";
+    private static final String MUTED = "#737373";
+    private static final String LINE = "#e5e5e5";
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.ENGLISH);
 
     // ---------------------------------------------------------------- HTML email
@@ -60,7 +64,7 @@ public class ClaimReportRenderer {
                     <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
                       <tr><td style="background:linear-gradient(135deg,%s,%s);padding:22px 32px;">
                         <div style="font-size:18px;font-weight:800;color:#ffffff;letter-spacing:-.01em;">🛡️ ClaimLens</div>
-                        <div style="font-size:12px;color:#c7d2fe;margin-top:2px;">Motor claims, automated &amp; accountable</div>
+                        <div style="font-size:12px;color:#a3a3a3;margin-top:2px;">Motor claims, automated &amp; accountable</div>
                       </td></tr>
                       <tr><td style="padding:28px 32px 8px;">
                         <div style="font-size:22px;font-weight:800;color:%s;line-height:1.25;">%s</div>

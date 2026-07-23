@@ -24,7 +24,7 @@ export default function PlatformLayout({ children }: { children: React.ReactNode
   const pathname = usePathname();
 
   useEffect(() => {
-    if (status === "unauthenticated") router.replace("/login");
+    if (status === "unauthenticated") router.replace("/sign-in");
     else if (status === "authenticated" && !has(PERMISSIONS.PLATFORM_ADMIN)) {
       router.replace(homePathFor(permissions));
     }

@@ -1,6 +1,9 @@
 package com.niyotechnologies.claimlens.security.config;
 
 import com.niyotechnologies.claimlens.security.filter.JwtAuthenticationFilter;
+import com.niyotechnologies.claimlens.security.filter.RateLimitFilter;
+import com.niyotechnologies.claimlens.security.ratelimit.RateLimitProperties;
+import com.niyotechnologies.claimlens.security.ratelimit.RateLimiter;
 import com.niyotechnologies.claimlens.security.service.JwtService;
 import com.niyotechnologies.claimlens.security.service.PermissionService;
 import com.niyotechnologies.claimlens.tenancy.filter.TenantFilter;
@@ -39,16 +42,24 @@ public class SecurityConfig {
     private final PermissionService permissionService;
     private final RestAuthenticationEntryPoint authenticationEntryPoint;
     private final RestAccessDeniedHandler accessDeniedHandler;
+    private final RateLimiter rateLimiter;
+    private final RateLimitProperties rateLimitProperties;
 
     /** Browser origins allowed to call the API (the frontend). Comma-separated; set per environment. */
     @Value("${claimlens.security.cors.allowed-origins:http://localhost:3000}")
     private List<String> allowedOrigins;
+
+    /** Base path, so the rate limiter matches /auth/** wherever the API is mounted. */
+    @Value("${claimlens.api.base-path:/api/v1}")
+    private String apiBasePath;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         JwtAuthenticationFilter jwtAuthenticationFilter =
                 new JwtAuthenticationFilter(jwtService, permissionService);
         TenantFilter tenantFilter = new TenantFilter();
+        RateLimitFilter rateLimitFilter =
+                new RateLimitFilter(rateLimiter, rateLimitProperties, apiBasePath);
 
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -64,8 +75,15 @@ public class SecurityConfig {
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
+                // Order is load-bearing: authenticate → throttle → resolve tenant.
+                // Each line anchors to the filter added before it, because Spring Security can only
+                // order a filter relative to one it has ALREADY registered.
+                // Rate limiting sits after authentication so cost-bearing endpoints can be keyed per
+                // user, and still ahead of every controller, so a throttled login is rejected before
+                // any password hashing or database work.
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterAfter(tenantFilter, JwtAuthenticationFilter.class);
+                .addFilterAfter(rateLimitFilter, JwtAuthenticationFilter.class)
+                .addFilterAfter(tenantFilter, RateLimitFilter.class);
 
         return http.build();
     }

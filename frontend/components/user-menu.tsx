@@ -24,7 +24,7 @@ export function UserMenu() {
 
   const onLogout = async () => {
     await dispatch(logout());
-    router.replace("/login");
+    router.replace("/sign-in");
   };
 
   const label = user?.email ?? "User";

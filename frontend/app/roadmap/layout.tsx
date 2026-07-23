@@ -22,7 +22,7 @@ export default function RoadmapLayout({ children }: { children: React.ReactNode 
             </Button>
             <ThemeToggle />
             <Button asChild variant="outline" size="sm">
-              <Link href="/login">Sign in</Link>
+              <Link href="/sign-in">Sign in</Link>
             </Button>
           </div>
         </div>

@@ -2,7 +2,7 @@
 
 # 🛡️ ClaimLens
 
-### Motor-insurance claims, automated — fast for honest claims, careful with the suspicious ones, and accountable for every decision.
+### Settle honest claims faster. Catch the ones that aren't.
 
 A multi-tenant SaaS where a customer files a motor-insurance claim, documents are read by OCR, photos are checked for fraud, a rules engine scores the risk, an investigator is assigned, and the claim is approved or rejected — **with strict tenant isolation and a complete audit trail.**
 
@@ -74,10 +74,13 @@ Policyholders file, upload, submit and track their own claims — with ownership
 A cross-tenant operator view: platform-wide analytics, tenant lifecycle, and impersonation.
 
 **📝 Full lifecycle & audit**
-Three-step intake → auto-assignment → investigation → decision, with document versioning and an append-only audit trail.
+Three-step intake → auto-assignment → investigation → decision, with document versioning and an append-only audit trail. **Two-way information requests**: an investigator asks for a document, the customer uploads it from the portal, and the claim re-opens and reprocesses itself.
+
+**🔑 Self-service credentials**
+New users are **invited**, not handed a password — a single-use, expiring link lets them set their own, so an admin never knows anyone else's credential. Same machinery powers password reset.
 
 **📧 Rich claim reports**
-Every claim email is branded HTML with an attached **PDF report** — key stats, the decision and who made it, and the customer's uploaded photos embedded inline.
+Every claim email is branded HTML with an attached **PDF report** — key stats, the incident description, the decision and who made it, and the customer's uploaded photos **embedded in the PDF**.
 
 </td>
 </tr>
@@ -173,7 +176,9 @@ Here's the end-to-end journey of a real claim 👇
 
 2. **🙋 Ownership (customer portal)** — because two customers share a tenant, `@TenantId` alone doesn't separate them. The portal adds a second gate: every read/write is scoped to the authenticated customer via `findByIdAndCustomerId(...)`, with the customer id coming from the JWT — never the request body.
 
-**Role-based access control** — permissions are checked with `@PreAuthorize` on the **service** layer (not the UI), resolved **per-request** from the database. The JWT carries only a role id, so revoking a permission takes effect on the very next request. The frontend hides buttons a role can't use; the backend enforces the rule regardless. This resolution — the hottest lookup in the app — is **cached** (Caffeine in dev, Redis in prod); because role→permission mappings are migration-managed, a change is a redeploy that clears the cache, so the "revoke → denied next request" guarantee holds.
+**Role-based access control** — permissions are checked with `@PreAuthorize` on the **service** layer (not the UI). The JWT carries only a **role id**, never a permissions array, so a signed token can never hold stale authority — permissions are resolved server-side from the database. That resolution runs on every authenticated request, so it's **cached** (Caffeine in dev, Redis in prod) with a short TTL; role→permission mappings are migration-managed, so a change is a redeploy, which clears the cache. The frontend hides buttons a role can't use; the backend enforces the rule regardless.
+
+**Brute-force protection** — sign-in is rate limited per client IP, and the cost-bearing endpoints (AI answers, document uploads) per user. Backed by Redis in production so the limit holds across instances, and it **fails open**: if the limiter is unreachable the request is allowed, because a throttle outage must never become a login outage.
 
 ```java
 // Real enforcement lives here, not in the client:
@@ -261,16 +266,19 @@ Claim-Lens/
 ## 🧪 Testing
 
 ```bash
-cd backend && ./mvnw test        # 68 integration & unit tests
+cd backend && ./mvnw test        # 92 integration & unit tests
 ```
 
 The suite runs against real **PostgreSQL** (not H2 — the app uses JSONB, partial indexes and `TIMESTAMPTZ`), with **Flyway** re-validating every migration on each run. Highlights:
 
 - 🔒 **Tenant isolation** — as tenant A, reading tenant B's record returns **404**, seeded via raw JDBC so the *reader* is what's proven filtered.
 - 🙋 **Ownership isolation** — customer A gets **404** for customer B's claim in the same tenant.
-- 🔑 **RBAC** — a revoked permission is denied on the *next* request.
+- 🔑 **RBAC** — a revoked permission is denied on the *next* request (the cache is disabled under the test profile, so this proves the live path).
 - ⚖️ **Full pipeline** — draft → submit → OCR → analysis → fraud → assign → decide.
 - 🤖 **RAG** — retrieval is tenant-scoped and citations point at the right clause.
+- 🚦 **Rate limiting** — repeated sign-ins get a **429**, while ordinary reads are never throttled.
+- 👤 **Onboarding** — a customer login must be linked to a policyholder, and an invited account can't sign in until it sets a password.
+- ⚡ **Cache resilience** — a cache failure degrades to a database read instead of failing the request.
 
 A **240-check cross-role sweep** additionally verifies every role can do exactly what it should — and nothing it shouldn't.
 

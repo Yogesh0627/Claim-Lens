@@ -15,6 +15,7 @@ const SHIPPED: { group: string; items: string[] }[] = [
     items: [
       "Multi-tenant isolation enforced in the database (Hibernate @TenantId), not by convention",
       "JWT auth with server-side, per-request RBAC (permissions resolved from roles, not the token)",
+      "Brute-force protection — sign-in is rate limited per client, shared across instances via Redis",
       "Append-only audit trail across state changes",
       "Refresh-token rotation with theft detection",
     ],
@@ -76,8 +77,10 @@ const SHIPPED: { group: string; items: string[] }[] = [
     items: [
       "Redis caching of role→permission resolution (Caffeine in dev, Upstash Redis in prod)",
       "Provider-agnostic cache — the same code runs on either backend, switched by profile",
-      "Namespaced cache keys so one Redis account is safely shared across apps",
+      "A cache outage degrades to a database read; it can never take the service down",
+      "Pluggable object storage — local filesystem in dev, S3-compatible (Cloudflare R2) in production",
       "Tuned HikariCP connection pool sized for a managed Postgres (Neon)",
+      "Containerised end to end: Docker images for all three services plus a Render blueprint",
     ],
   },
   {
@@ -93,12 +96,12 @@ const SHIPPED: { group: string; items: string[] }[] = [
 
 const NEXT: { title: string; detail: string }[] = [
   {
-    title: "Cloud deployment & hardening",
-    detail: "Render + Neon + R2 live, with rate limiting, metrics (Micrometer → Prometheus/Grafana) and structured JSON logs carrying trace / tenant / user context.",
+    title: "Observability",
+    detail: "Metrics (Micrometer → Prometheus/Grafana) and structured JSON logs carrying trace / tenant / user context. The deployment path — Docker images, a Render blueprint, Neon, R2 storage and auth rate limiting — is already built.",
   },
   {
-    title: "pgvector at scale",
-    detail: "HNSW tuning and a backfill path so retrieval stays fast as the policy corpus grows.",
+    title: "Vector search tuning",
+    detail: "pgvector with an HNSW index already ships (opt-in). What's next is tuning that index and a backfill path so retrieval stays fast as the policy corpus grows.",
   },
   {
     title: "More claim types",
@@ -121,8 +124,8 @@ const NEXT: { title: string; detail: string }[] = [
     detail: "A phone-first flow for filing a claim and uploading damage photos at the roadside.",
   },
   {
-    title: "Analytics & export",
-    detail: "Richer dashboards with date ranges and CSV / PDF export for platform and tenant reports.",
+    title: "Analytics date ranges & export",
+    detail: "Tenant and platform dashboards ship today, but report over all time. Next is filtering by date range and exporting to CSV / PDF.",
   },
 ];
 

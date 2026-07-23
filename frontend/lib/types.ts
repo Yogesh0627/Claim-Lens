@@ -56,7 +56,10 @@ export interface CreateUserRequest {
   employeeCode: string;
   phone?: string | null;
   roleCode: string;
+  /** Omit to invite: the account is created INVITED and emailed a "set your password" link. */
   password?: string | null;
+  /** Required for roleCode "CUSTOMER" (links the login to a policyholder); rejected for staff roles. */
+  customerId?: number | null;
 }
 export interface UpdateUserRequest {
   firstName: string;

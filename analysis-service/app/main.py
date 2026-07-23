@@ -12,6 +12,7 @@ cross-claim duplicate comparison itself (it owns the data); /compare offers a di
 from __future__ import annotations
 
 import io
+import logging
 from datetime import datetime
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
@@ -27,6 +28,18 @@ from .synthetic import detect_synthetic
 APP_VERSION = "1.0.0"
 
 app = FastAPI(title="ClaimLens Analysis Service", version=APP_VERSION)
+
+logger = logging.getLogger(__name__)
+
+if not settings.analysis_shared_secret:
+    # Fine locally (the backend calls it over loopback), dangerous anywhere public: this service
+    # gets its own internet-facing URL on Render, and the auth check below is a no-op while the
+    # secret is blank. The Render blueprint generates one automatically — if you see this in a
+    # deployed log, the service is accepting requests from anyone.
+    logger.warning(
+        "ANALYSIS_SHARED_SECRET is not set — this service is UNAUTHENTICATED. "
+        "Safe for local use only; set it for any deployment."
+    )
 
 
 def _check_auth(token: str | None) -> None:

@@ -83,7 +83,14 @@ git push -u origin main
    ```
 4. That's it — **you don't run any SQL**. When the backend first boots on Render, Flyway creates the whole schema and (if `DEMO_SEED=true`) seeds the demo tenant. ✨
 
-> If you enable **pgvector** (`PGVECTOR_ENABLED=true`), the backend also runs `CREATE EXTENSION vector` on startup — Neon supports it out of the box.
+> **pgvector.** `PGVECTOR_ENABLED=true` is set for Render (Neon ships the extension); local dev stays
+> `false` because stock Postgres doesn't have it. On boot the backend runs `CREATE EXTENSION vector`,
+> adds `policy_chunk.embedding_vec` and builds the HNSW index — all idempotent.
+>
+> ⚠️ **It does not backfill.** Policy chunks ingested while pgvector was off have a NULL vector and
+> are skipped by the search, so coverage answers come back empty. **Ingest policy documents after the
+> first boot with this enabled**, or re-ingest them. Confirm it's live by looking for
+> `pgvector enabled: extension + policy_chunk.embedding_vec + HNSW index ready` in the logs.
 
 ---
 
@@ -118,6 +125,7 @@ REDIS_HOST         = <your-db>.upstash.io                # from Step 2b
 REDIS_PORT         = 6379
 REDIS_PASSWORD     = <upstash password>
 CORS_ALLOWED_ORIGINS = https://<your-app>.vercel.app     # add after Step 5
+APP_BASE_URL         = https://<your-app>.vercel.app     # add after Step 5 (email links)
 DEMO_SEED          = true
 ```
 
@@ -174,8 +182,11 @@ For image-fraud forensics (duplicate photos, EXIF, synthetic detection).
 ## Step 6 — Wire the two sides together 🔗
 
 1. **CORS:** in the **Render backend**, set
-   `CORS_ALLOWED_ORIGINS = https://<your-app>.vercel.app` → redeploy.
-2. **API URL:** confirm the Vercel `NEXT_PUBLIC_API_BASE_URL` points at the Render backend `/api/v1`.
+   `CORS_ALLOWED_ORIGINS = https://<your-app>.vercel.app`.
+2. **Email links:** set `APP_BASE_URL = https://<your-app>.vercel.app` on the same service, then
+   redeploy. This is what invitation and password-reset emails build their "set your password" links
+   from — leave it unset and every link sends the recipient to `localhost`.
+3. **API URL:** confirm the Vercel `NEXT_PUBLIC_API_BASE_URL` points at the Render backend `/api/v1`.
 
 ✅ Open the Vercel URL and log in with a demo account — you should reach the workspace.
 
@@ -223,6 +234,7 @@ Render free services sleep after ~15 min idle. Two cron jobs keep both awake so 
 | `REDIS_PORT` | `6379` | |
 | `REDIS_PASSWORD` | `<upstash password>` | 🔒 secret |
 | `CORS_ALLOWED_ORIGINS` | `https://<app>.vercel.app` | your Vercel domain |
+| `APP_BASE_URL` | `https://<app>.vercel.app` | frontend URL used in invitation / password-reset email links — unset means every link points at localhost |
 | `DEMO_SEED` | `true` | seed demo tenant + logins |
 | `STORAGE_PROVIDER` | `s3` | use R2 for uploads |
 | `STORAGE_S3_ENDPOINT` | `https://<acct>.r2.cloudflarestorage.com` | |
@@ -237,7 +249,7 @@ Render free services sleep after ~15 min idle. Two cron jobs keep both awake so 
 | `GOOGLE_VISION_API_KEY` | `AIza…` | 🔒 secret, billing enabled |
 | `AI_ENABLED` | `true` | Gemini RAG (else offline stub) |
 | `GEMINI_API_KEY` | `…` | 🔒 secret |
-| `PGVECTOR_ENABLED` | `true` *(optional)* | pgvector + HNSW on Neon |
+| `PGVECTOR_ENABLED` | `true` | pgvector + HNSW on Neon (local stays `false` — no extension). Needs `AI_ENABLED=true` for 768-dim vectors |
 | `ANALYSIS_ENABLED` | `true` | image forensics |
 | `ANALYSIS_SERVICE_URL` | `https://claimlens-analysis.onrender.com` | |
 | `GOOGLE_CLIENT_ID` | `…apps.googleusercontent.com` | Google login |
@@ -260,7 +272,9 @@ Render free services sleep after ~15 min idle. Two cron jobs keep both awake so 
 | Flyway error on boot | Using the **pooler** endpoint — switch `DATABASE_URL` to the **direct** endpoint |
 | Frontend loads but every API call fails (CORS) | `CORS_ALLOWED_ORIGINS` on the backend must exactly match the Vercel URL (https, no trailing slash) |
 | First request after idle is slow | Render cold start — the cron pinger (Step 8) prevents this during active hours |
-| Backend won't start, Redis/Lettuce connection error | `SPRING_PROFILES_ACTIVE=prod` is set but `REDIS_HOST`/`REDIS_PASSWORD` are wrong or missing — fix them, or unset the profile to fall back to the in-process cache |
+| Deploy fails **"timed out waiting for the service"**, but the logs show the app *did* start | The health check was failing, so Render killed a running service. Redis health no longer gates `/actuator/health`, and cache errors can no longer break requests — redeploy on current code. If it persists, the health check is failing for another reason: open `https://<service>/actuator/health` and read which component is `DOWN` |
+| Backend won't start, `Could not resolve placeholder 'REDIS_HOST'` | `SPRING_PROFILES_ACTIVE=prod` is set but `REDIS_HOST`/`REDIS_PASSWORD` are missing — set them, or unset the profile to use the in-process cache |
+| Redis is misconfigured / unreachable but the app is up | Expected. The cache is an optimization: errors are logged and the call falls through to the database. Look for `Cache get failed on 'rolePermissions'` in the logs |
 | Coverage/RAG returns a stub answer | `GEMINI_API_KEY` missing or out of quota — it degrades gracefully; add a working key for real answers |
 | OCR returns nothing | `GOOGLE_VISION_API_KEY` unset, or **billing not enabled** on the Google project |
 

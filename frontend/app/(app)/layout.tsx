@@ -20,7 +20,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    if (status === "unauthenticated") router.replace("/login");
+    if (status === "unauthenticated") router.replace("/sign-in");
     // Customers belong in the self-service portal, not the staff workspace.
     else if (status === "authenticated" && has(PERMISSIONS.PORTAL_CLAIM_READ)) {
       router.replace("/portal");

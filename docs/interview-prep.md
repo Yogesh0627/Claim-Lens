@@ -282,6 +282,33 @@ design:
 > deploy. State that boundary explicitly and the cache is safe. The moment a runtime editor lands,
 > the boundary moves to that write, and eviction moves there with it.
 
+### Rate limiting — the second thing Redis buys us
+
+`/auth/**` is the only unauthenticated surface in the API, which makes it the only brute-forceable
+one. It's now rate limited per client IP, per endpoint, in a fixed window (default 20/min).
+
+- **Two implementations behind one interface**, same swappable shape as storage/OCR/email/cache:
+  in-memory for dev and tests, **Redis for prod**. The distinction matters: an in-memory counter is
+  *per instance*, so behind a load balancer the real limit silently becomes `limit × instances`.
+  Redis `INCR` is atomic and shared, so the limit is the limit.
+- **It fails OPEN.** If Redis is unreachable the request is allowed and a warning is logged. A rate
+  limiter blunts abuse; letting it lock every user out during an infra blip trades a small risk for
+  a total outage — the same lesson the cache taught us on the first deploy.
+- **Keyed on `X-Forwarded-For`**, not `getRemoteAddr()`: behind Render's proxy the socket address is
+  the load balancer, so every user in the world would share one bucket.
+- **Per-endpoint buckets**, so someone hammering `/login` can't also lock out `/refresh-token` for
+  legitimate sessions. A test asserts exactly that.
+- **The filter is not a `@Component`** — it's constructed in `SecurityConfig`. A `Filter` *bean* gets
+  auto-registered by Boot on the raw servlet chain **as well**, so it would run twice and
+  double-count every request.
+
+> War story: `addFilterBefore(rateLimitFilter, JwtAuthenticationFilter.class)` failed at startup with
+> *"JwtAuthenticationFilter does not have a registered order."* Spring Security can only position a
+> filter relative to one it has **already** registered, and I'd put my line above the one that
+> registers the JWT filter. Fix: register the JWT filter first, then anchor to it. The final order is
+> rate-limit → authenticate → resolve tenant, which is also the order you want on cost grounds —
+> a throttled request is rejected before any password hashing or database work.
+
 ### Connection pooling
 
 - **HikariCP** (Spring Boot's default) is explicitly tuned rather than left on defaults: small pool
@@ -530,6 +557,34 @@ bypasses `@TenantId`** — not a mid-transaction context change. *Lesson:* `@Ten
 multi-tenancy) binds the tenant at Session/transaction start; you can't re-scope an open transaction by
 mutating the ThreadLocal. Pre-auth lookups (login, refresh) inherently cross tenants and must use
 native SQL.
+
+**11. The customer portal was unreachable through our own API.** The portal scopes every read by
+`app_user.customer_id` — that link is what makes it work. But `CreateUserRequest` had no `customerId`
+field and `UserServiceImpl.create()` never called `setCustomerId`. So a `CUSTOMER` account created
+through the API had a **null** `customer_id`: the person signed in successfully and landed in a
+permanently empty portal. Every working portal login in the system existed only because it had been
+**hand-written into SQL** by the demo seed — which is exactly why nobody noticed. *Fix:* `customerId`
+on the request, **required** when `roleCode = CUSTOMER` and **rejected** otherwise (staff don't own a
+customer), validated with a tenant-scoped lookup so you can't link across tenants.
+*Lesson:* **a seed that bypasses your own API hides the fact that the API can't do the job.** When
+fixture data is written in raw SQL, the product path it stands in for is untested by construction.
+
+**12. `INVITED` was a status no account could ever leave.** Creating a user without a password set the
+status to `INVITED`, and the DTO's own Javadoc said it was "to be used with Google sign-in on the same
+email." But the auth code rejects anything that isn't `ACTIVE` — so an `INVITED` account could sign in
+with **neither** a password (it had none) nor Google (`ACCOUNT_NOT_ACTIVE`). The documented feature had
+never worked. In practice admins typed a password and told the person out of band, which means the
+admin knows someone else's credential. *Fix:* a single-use, hashed, expiring invitation token emailed
+as a "set your password" link — redeeming it is what promotes `INVITED → ACTIVE`. The same machinery
+powers forgot-password. *Lesson:* **a state with no exit transition is a bug, not a state** — and a
+comment claiming a feature works is not evidence that it does.
+
+**13. Two subtle things the invitation flow got right (and why).** Redemption is *anonymous*, so
+loading the user with a normal repository call would have repeated war story #10 — a `@TenantId` query
+under `SYSTEM_TENANT` matching nothing. Both the read **and the credential update** go through native
+SQL that bypasses tenancy. And `forgot-password` returns `204` whether or not the address exists:
+responding differently would turn it into an **account-enumeration oracle**, letting anyone test which
+emails have accounts. A test pins that both responses are identical.
 
 ---
 
@@ -1012,6 +1067,37 @@ new security boundary.
 > this customer" with zero DB lookups — the same stateless-principal pattern as tenant and role. A
 > staff login has `cid = null`, so if one ever reached a portal method the ownership resolver throws
 > `NOT_A_CUSTOMER` — defense in depth behind the permission gate.
+
+---
+
+## Current state — what's actually built and proven (92 backend tests green)
+
+The phase headings above carry the test count *at the time*, so they climb: 35 → 44 → 57 → 59 → 63.
+Where it stands now:
+
+| Area | State |
+|---|---|
+| Core V1 | Multi-tenancy, RBAC, claims lifecycle, fraud engine, RAG, customer portal, platform console |
+| Performance | Permission cache (Caffeine dev / Redis prod), tuned HikariCP, gated pgvector + HNSW |
+| Security | Auth rate limiting (per IP) + cost limiting on AI/uploads (per user), invitation & reset tokens |
+| Lifecycle | Two-way information requests — request → customer responds → auto re-open + reprocess |
+| Comms | Branded HTML emails + an attached PDF claim report with the photos embedded |
+| Tests | **92** (3 skipped, all env-gated: a live-Vision check and two manual email senders) |
+
+**Proven against real infrastructure, not just locally:** pgvector runs on Neon (extension, HNSW
+index, ANN query, and a real ingest → ask round trip), the Redis cache runs on Upstash, and both
+Gemini embeddings and chat return real answers with citations.
+
+**Known gaps, stated honestly** — worth naming these before an interviewer finds them:
+- **Observability** is the one Phase-2 item left: no Micrometer/Prometheus metrics, no structured
+  JSON logs with trace/tenant/user MDC.
+- **Presigned URLs** aren't built, so claim-photo thumbnails don't render inline in email (the PDF
+  carries them instead). The alternative — a public bucket — would put claimants' licences and FIRs
+  on the open internet, which isn't a trade worth making for a thumbnail.
+- **Per-document reprocessing**: a customer response re-runs the whole claim's pipeline rather than
+  just the changed file, because OCR/analysis jobs are claim-scoped.
+- **PDF generation runs on the request thread** inside the claim transaction; the fix is
+  `@TransactionalEventListener(AFTER_COMMIT)` + `@Async`.
 
 ---
 

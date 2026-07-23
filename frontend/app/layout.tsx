@@ -14,14 +14,15 @@ const geistMono = Geist_Mono({
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://claimlens.app";
 const DESCRIPTION =
-  "ClaimLens is a multi-tenant SaaS for motor-insurance claims: OCR document intake, image-fraud " +
-  "signals, an explainable fraud engine, auto-assignment, and AI policy answers — with strict " +
-  "tenant isolation and a full audit trail.";
+  "Settle honest motor-insurance claims faster, and catch the ones that aren't. ClaimLens reads " +
+  "claim documents with OCR, checks damage photos for tampering and reuse, scores fraud risk with " +
+  "rules that explain themselves, and answers coverage questions from the policy wording — with " +
+  "strict tenant isolation and a full audit trail.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "ClaimLens — Motor Insurance Claims, Automated",
+    default: "ClaimLens — Settle honest claims faster",
     template: "%s · ClaimLens",
   },
   description: DESCRIPTION,
@@ -40,13 +41,13 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "ClaimLens",
-    title: "ClaimLens — Motor Insurance Claims, Automated",
+    title: "ClaimLens — Settle honest claims faster",
     description: DESCRIPTION,
     url: SITE_URL,
   },
   twitter: {
     card: "summary_large_image",
-    title: "ClaimLens — Motor Insurance Claims, Automated",
+    title: "ClaimLens — Settle honest claims faster",
     description: DESCRIPTION,
     creator: "@Yogesh0130",
   },
@@ -67,7 +68,7 @@ export default function RootLayout({
       <body className="bg-background text-foreground min-h-screen antialiased">
         <Providers>
           {children}
-          <ServerStatus />
+          {/* <ServerStatus /> */}
         </Providers>
       </body>
     </html>

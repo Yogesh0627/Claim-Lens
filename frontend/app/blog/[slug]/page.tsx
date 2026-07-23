@@ -17,9 +17,10 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const post = await getPost(slug);
-  if (!post) return { title: "Post not found — ClaimLens" };
+  // Titles omit the brand: the root layout's template appends " · ClaimLens".
+  if (!post) return { title: "Post not found" };
   return {
-    title: `${post.frontmatter.title} — ClaimLens`,
+    title: post.frontmatter.title,
     description: post.frontmatter.description,
     openGraph: {
       title: post.frontmatter.title,
