@@ -68,7 +68,7 @@ export default function RootLayout({
       <body className="bg-background text-foreground min-h-screen antialiased">
         <Providers>
           {children}
-          {/* <ServerStatus /> */}
+          <ServerStatus />
         </Providers>
       </body>
     </html>
