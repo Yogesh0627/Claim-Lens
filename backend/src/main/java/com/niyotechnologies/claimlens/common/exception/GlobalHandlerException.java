@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.niyotechnologies.claimlens.common.response.ValidationErrorResponse;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -103,6 +104,27 @@ public class GlobalHandlerException {
                         ApiErrorResponse.of(
                                 "FORBIDDEN",
                                 "You do not have permission to perform this action"
+                        )
+                );
+    }
+
+    // A non-numeric path variable (e.g. /companies/me hitting /companies/{companyId}) fails to bind
+    // and, without this, escapes to the catch-all as a 500 — telling the caller "server broke" when
+    // the request was simply malformed. Applies to every {id} route, not just companies.
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiErrorResponse> handleTypeMismatch(
+            MethodArgumentTypeMismatchException ex
+    ) {
+
+        return ResponseEntity
+                .badRequest()
+                .body(
+                        ApiErrorResponse.of(
+                                "INVALID_PATH_PARAMETER",
+                                "'" + ex.getName() + "' must be a valid "
+                                        + (ex.getRequiredType() != null
+                                                ? ex.getRequiredType().getSimpleName()
+                                                : "value")
                         )
                 );
     }

@@ -112,10 +112,12 @@ export const NAV_SECTIONS: NavSection[] = [
         permission: [PERMISSIONS.ORG_DESIGNATION_READ],
       },
       {
+        // Lists every tenant, so it is platform-admin only. ORG_COMPANY_READ is NOT enough —
+        // tenant admins and auditors hold it, and gating on it surfaced other tenants' companies.
         title: "Companies",
         href: "/organization/companies",
         icon: Building2,
-        permission: [PERMISSIONS.ORG_COMPANY_READ],
+        permission: [PERMISSIONS.PLATFORM_ADMIN],
       },
     ],
   },

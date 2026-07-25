@@ -31,6 +31,20 @@ public class InsuranceCompanyController {
         );
     }
 
+    /**
+     * The caller's own company, resolved from the JWT.
+     *
+     * <p>Spring's pattern comparator prefers a literal segment over a variable, so this wins over
+     * {@code /companies/{companyId}} regardless of declaration order. Without it, "/companies/me"
+     * fell through to that route and failed to parse "me" as a Long — surfacing as a 500.
+     */
+    @GetMapping("/companies/me")
+    @ResponseStatus(HttpStatus.OK)
+    public ApiResponse<InsuranceCompanyResponse> getMyCompany(){
+
+        return ApiResponse.success(organizationService.getMyCompany());
+    }
+
     @GetMapping("/companies/{companyId}")
     @ResponseStatus(HttpStatus.OK)
     public ApiResponse<InsuranceCompanyResponse> getCompany(@PathVariable Long companyId){

@@ -8,6 +8,7 @@ import java.util.Base64;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -22,6 +23,7 @@ class TenantIsolationIntegrationTest extends AbstractIntegrationTest {
 
     private static final long ROLE_ID = 1L;
     private static final String REGIONS = "/api/v1/organizations/regions";
+    private static final String COMPANIES = "/api/v1/organizations/companies";
 
     @Test
     void tenantCannotReadAnotherTenantsRegion() throws Exception {
@@ -41,6 +43,110 @@ class TenantIsolationIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(get(REGIONS + "/{r}", regionB)
                         .header("Authorization", "Bearer " + tokenA))
                 .andExpect(status().isNotFound());
+    }
+
+    // ── InsuranceCompany: the tenant ROOT ────────────────────────────────────────────────────────
+    // These exist because company is the one aggregate @TenantId does NOT protect (it has no
+    // discriminator — you must be able to load it before the tenant is known). Guarding it was left
+    // to ORG_COMPANY_READ/WRITE, which TENANT_ADMIN and AUDITOR also hold, so any tenant admin could
+    // read AND overwrite every other tenant's company. Verified against the running app before the
+    // fix: a rename of another tenant's company returned 200 and persisted.
+
+    @Test
+    void tenantAdminCannotListEveryTenantsCompany() throws Exception {
+        insertCompany("Alpha Insurance", "ALPHA", "alpha");
+        long tenantB = insertCompany("Beta Insurance", "BETA", "beta");
+
+        mockMvc.perform(get(COMPANIES)
+                        .header("Authorization", "Bearer " + tokenFor(1L, tenantB, roleIdByCode("TENANT_ADMIN"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void auditorCannotListEveryTenantsCompany() throws Exception {
+        insertCompany("Alpha Insurance", "ALPHA", "alpha");
+        long tenantB = insertCompany("Beta Insurance", "BETA", "beta");
+
+        mockMvc.perform(get(COMPANIES)
+                        .header("Authorization", "Bearer " + tokenFor(1L, tenantB, roleIdByCode("AUDITOR"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void tenantAdminCannotReadAnotherTenantsCompany() throws Exception {
+        long tenantA = insertCompany("Alpha Insurance", "ALPHA", "alpha");
+        long tenantB = insertCompany("Beta Insurance", "BETA", "beta");
+
+        String tokenB = tokenFor(1L, tenantB, roleIdByCode("TENANT_ADMIN"));
+
+        // Own company → 200
+        mockMvc.perform(get(COMPANIES + "/{id}", tenantB)
+                        .header("Authorization", "Bearer " + tokenB))
+                .andExpect(status().isOk());
+
+        // Another tenant's company → 404, never 200 and never 403 (403 confirms it exists)
+        mockMvc.perform(get(COMPANIES + "/{id}", tenantA)
+                        .header("Authorization", "Bearer " + tokenB))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void tenantAdminCannotOverwriteAnotherTenantsCompany() throws Exception {
+        long tenantA = insertCompany("Alpha Insurance", "ALPHA", "alpha");
+        long tenantB = insertCompany("Beta Insurance", "BETA", "beta");
+
+        mockMvc.perform(put(COMPANIES + "/{id}", tenantA)
+                        .header("Authorization", "Bearer "
+                                + tokenFor(1L, tenantB, roleIdByCode("TENANT_ADMIN")))
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        // Must be a fully VALID body: bean validation runs before the ownership
+                        // check, so a partial payload returns 400 and never exercises the guard.
+                        .content("""
+                                {"name":"PWNED","subscriptionPlan":"BASIC",\
+                                "currency":"INR","timezone":"Asia/Kolkata"}"""))
+                .andExpect(status().isNotFound());
+
+        // The write must not have landed — a 404 that still mutated would be the worse bug.
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "Alpha Insurance",
+                insuranceCompanyRepository.findById(tenantA).orElseThrow().getName());
+    }
+
+    @Test
+    void platformAdminRetainsCrossTenantAccess() throws Exception {
+        long tenantA = insertCompany("Alpha Insurance", "ALPHA", "alpha");
+        insertCompany("Beta Insurance", "BETA", "beta");
+
+        String platform = tokenFor(1L, tenantA, roleIdByCode("PLATFORM_ADMIN"));
+
+        mockMvc.perform(get(COMPANIES).header("Authorization", "Bearer " + platform))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Beta Insurance")));
+    }
+
+    @Test
+    void companiesMeResolvesOwnCompanyFromTheToken() throws Exception {
+        insertCompany("Alpha Insurance", "ALPHA", "alpha");
+        long tenantB = insertCompany("Beta Insurance", "BETA", "beta");
+
+        mockMvc.perform(get(COMPANIES + "/me")
+                        .header("Authorization", "Bearer " + tokenFor(1L, tenantB, roleIdByCode("TENANT_ADMIN"))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Beta Insurance")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("Alpha Insurance"))));
+    }
+
+    @Test
+    void nonNumericCompanyIdIsBadRequestNotServerError() throws Exception {
+        long tenantA = insertCompany("Alpha Insurance", "ALPHA", "alpha");
+
+        // "not-a-number" cannot bind to Long. Before the type-mismatch handler this escaped to the
+        // catch-all as a 500 — reporting a server fault for a malformed request. Applies to every
+        // {id} route, so it is asserted once here.
+        mockMvc.perform(get(COMPANIES + "/{id}", "not-a-number")
+                        .header("Authorization", "Bearer " + tokenFor(1L, tenantA, ROLE_ID)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

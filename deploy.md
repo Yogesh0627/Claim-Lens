@@ -19,7 +19,7 @@ Deploy **ClaimLens** to a free, production-style cloud stack, step by step.
    │ Postgres    │   │ (Render, Docker)   │   │  Resend (email)  │
    └─────────────┘   └────────────────────┘   └──────────────────┘
 
-   ⏰ cron-job.org  ── pings both Render /health URLs every 10 min (keep-alive)
+   ⏰ cron-job.org  ── pings the backend `GET /` every 10 min, 10-hour window (keep-alive)
 ```
 
 | Piece | Host | Free tier |
@@ -34,7 +34,7 @@ Deploy **ClaimLens** to a free, production-style cloud stack, step by step.
 | 🔎 OCR | **Google Cloud Vision** | Free tier (billing must be enabled) |
 | ⏰ Keep-alive | **cron-job.org** | ✅ |
 
-> 💡 **Cost:** $0/month. The only caveat is Render free services **sleep after ~15 min idle** — the cron pinger in [Step 8](#step-8--keep-alive-cron-cron-jobrg-) keeps them warm.
+> 💡 **Cost:** $0/month. The main caveat is Render free services **sleep after ~15 min idle** — the cron pinger in [Step 8](#step-8--keep-alive-cron-cron-jobrg-) keeps the backend warm during active hours. Render's 750 instance-hours are **pooled across the whole account**, so Step 8 uses a 10-hour daily window rather than 24/7.
 
 ---
 
@@ -204,20 +204,52 @@ https://<your-app>.vercel.app
 
 ## Step 8 — Keep-alive cron (cron-job.org) ⏰
 
-Render free services sleep after ~15 min idle. Two cron jobs keep both awake so a visitor never hits a cold start.
+Render free services sleep after ~15 min idle. A cron ping keeps the backend warm so a visitor never
+hits a cold start. Two rules shape the structure below — get them wrong and you trade one free-tier
+overage for another:
+
+- **Ping `GET /`, never `/actuator/health`.** `/` ([`HealthController`](backend/src/main/java/com/niyotechnologies/claimlens/common/controller/HealthController.java)) returns a flat string and touches nothing. `/actuator/health` runs the DB indicator — a query every 10 min keeps **Neon's** compute endpoint from auto-suspending and quietly eats Neon's free monthly compute-hour cap. Both are `permitAll`, so it's purely a cost choice.
+- **Cron the backend only — not the analysis service.** Render's 750 free instance-hours are **pooled workspace-wide** (shared with any other services in the same account, e.g. EcoExpress). The backend's `AnalysisWarmup` already fires a wake ping at startup, and if analysis is cold a claim just loses its image-forensics signals (fraud still scores on rules + OCR — a designed-for degradation). Cronning analysis would spend ~365 h/mo to avoid an occasional 60 s delay.
+
+### The job
 
 1. Sign in to **[cron-job.org](https://cron-job.org)** → **Create cronjob**.
-2. **Job 1 — backend:**
+2. Configure:
    - **Title:** ClaimLens backend keep-alive
-   - **URL:** `https://claimlens-backend.onrender.com/actuator/health`
-   - **Schedule:** Every **10 minutes** (`*/10 * * * *`)
+   - **URL:** `https://claimlens-backend-n1yp.onrender.com/` *(your real backend URL)*
+   - **Schedule → Custom (expert mode):** `5,15,25,35,45,55 10-19 * * *` — every 10 min, only 10:00–19:59. *(Use the explicit minute list, not `5-55/10` — cron-job.org's validator rejects the range-with-step form.)*
+   - **Timezone:** Asia/Kolkata
    - Save.
-3. **Job 2 — analysis service:** repeat with
-   - **URL:** `https://claimlens-analysis.onrender.com/health`
-   - Every 10 minutes.
-4. *(Optional)* Enable failure notifications — the rich `/health` payload lets you alert if `status != UP`.
 
-> 💡 The 10-minute interval is comfortably under Render's 15-minute idle timeout. During quiet hours both stay warm; a recruiter opening the demo gets an instant response. ⚡
+That's a **10-hour daily window**, not 24/7. Ping frequency doesn't affect hours consumed — only the
+window length does; the container is up continuously across the window either way. Ten minutes is
+chosen so one missed ping still leaves 5 min of margin before Render's 15-min idle timeout.
+
+### If you also run EcoExpress in the same Render account
+
+The 750 h are shared, so window both services and **offset them by 5 min** (readability, and avoids two
+cold starts on the same second):
+
+| Service | URL (cheapest DB-free endpoint) | Cron expression | Window |
+|---|---|---|---|
+| ClaimLens backend | `…-n1yp.onrender.com/` | `5,15,25,35,45,55 10-19 * * *` | 10:00–19:59 |
+| EcoExpress | its DB-free public endpoint | `*/10 10-19 * * *` | 10:00–19:59 |
+| ClaimLens analysis | — | **no cron** | on-demand only |
+
+**Budget** (last ping 19:50 → spin-down ~20:05 ≈ 10.1 h/day):
+
+```
+EcoExpress          10.1 h × 30 ≈ 303 h
+ClaimLens backend   10.1 h × 30 ≈ 303 h
+ClaimLens analysis  on-demand   ≈  20 h
+                                ------
+                                ≈ 626 h of 750  (~83%, ~124 h headroom)
+```
+
+> 💡 **Expect the first ping of each day to show as failed.** cron-job.org's free tier caps request
+> timeout at 30 s; a cold Render start takes ~50 s. That ping still *triggers* the wake — the one 10 min
+> later succeeds. It's one isolated failure per day, never a consecutive streak, so cron-job.org won't
+> auto-disable the job. Don't chase it. **Vercel doesn't sleep, so the frontend needs no cron.**
 
 ---
 

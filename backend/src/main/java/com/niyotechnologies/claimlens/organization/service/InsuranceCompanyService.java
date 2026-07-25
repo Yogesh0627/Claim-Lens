@@ -17,6 +17,8 @@ public interface InsuranceCompanyService {
             Long companyId
     );
 
+    InsuranceCompanyResponse getMyCompany();
+
     List<InsuranceCompanyResponse> getAllCompanies();
 
     InsuranceCompanyResponse updateInsuranceCompany(

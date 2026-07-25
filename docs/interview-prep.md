@@ -1070,7 +1070,7 @@ new security boundary.
 
 ---
 
-## Current state — what's actually built and proven (92 backend tests green)
+## Current state — what's actually built and proven (99 backend tests green)
 
 The phase headings above carry the test count *at the time*, so they climb: 35 → 44 → 57 → 59 → 63.
 Where it stands now:
@@ -1082,7 +1082,7 @@ Where it stands now:
 | Security | Auth rate limiting (per IP) + cost limiting on AI/uploads (per user), invitation & reset tokens |
 | Lifecycle | Two-way information requests — request → customer responds → auto re-open + reprocess |
 | Comms | Branded HTML emails + an attached PDF claim report with the photos embedded |
-| Tests | **92** (3 skipped, all env-gated: a live-Vision check and two manual email senders) |
+| Tests | **99** (3 skipped, all env-gated: a live-Vision check and two manual email senders) |
 
 **Proven against real infrastructure, not just locally:** pgvector runs on Neon (extension, HNSW
 index, ANN query, and a real ingest → ask round trip), the Redis cache runs on Upstash, and both
@@ -1098,6 +1098,129 @@ Gemini embeddings and chat return real answers with citations.
   just the changed file, because OCR/analysis jobs are claim-scoped.
 - **PDF generation runs on the request thread** inside the claim transaction; the fix is
   `@TransactionalEventListener(AFTER_COMMIT)` + `@Async`.
+
+---
+
+## Live end-to-end testing session — four bugs the test suite never caught (99 backend tests green)
+
+Everything below was found by **driving the running app**, not by reading code or running tests. That
+is the lesson in itself: 92 green tests, a clean deploy, and the first ten minutes of clicking through
+a real flow surfaced a critical cross-tenant write. **Tests prove the paths you thought of.**
+
+### 1. The tenant root had no guard at all ⭐ (the best story here)
+
+**Symptom.** Logged in as the tenant admin of *Demo* (tenant 2), issued
+`PUT /organizations/companies/1` — *Acme*, a different tenant — and got `200 OK`. The rename
+persisted. A tenant admin could read **and overwrite** every other tenant's company record.
+
+**Why the architecture didn't stop it.** `InsuranceCompany` deliberately extends `BaseEntity`, not
+`TenantAwareEntity`. That is correct: it is the tenant *root*, so a `@TenantId` discriminator would
+make it unloadable before the tenant is known — chicken-and-egg at login. But that means **Hibernate's
+tenant filter never applies to it**, and the design note said it must therefore sit behind a
+platform-admin authority. It never did. The only guard was `ORG_COMPANY_READ` / `ORG_COMPANY_WRITE`,
+and the seed grants those to `TENANT_ADMIN` and `AUDITOR` too:
+
+```sql
+SELECT r.code, p.code FROM role_permission rp
+  JOIN role r ON r.id=rp.role_id JOIN permission p ON p.id=rp.permission_id
+ WHERE p.code LIKE 'ORG_COMPANY%';
+-- AUDITOR|ORG_COMPANY_READ   TENANT_ADMIN|ORG_COMPANY_READ   TENANT_ADMIN|ORG_COMPANY_WRITE
+```
+
+So the one aggregate the automatic mechanism *cannot* protect was left relying on it. **The exception
+to a safety net is exactly where the manual check has to be, and exactly where it gets forgotten.**
+
+**Fix.** Cross-tenant operations (list-all, create, delete) now require `PLATFORM_ADMIN`. Per-id
+read/update call `assertOwnTenantOrPlatformAdmin(id)`, which throws **404, not 403** — a 403 confirms
+the row exists and leaks other tenants. Added `GET /companies/me` so a tenant admin reaches their own
+company without ever naming an id. The frontend had the same hole: the "Companies" nav item was gated
+on `ORG_COMPANY_READ`, so the UI actively *offered* tenant admins a list of every tenant — re-gated to
+`PLATFORM_ADMIN`.
+
+**Interview framing:** *"Where is your authorization weakest?"* → wherever a global mechanism has a
+deliberate exception. Enumerate the exceptions; each one needs an explicit, tested guard.
+
+### 2. `/companies/me` returned 500 — and so did every bad id
+
+The endpoint didn't exist, so `/companies/me` fell through to `/companies/{companyId}`, `"me"` failed
+to bind to `Long`, and `MethodArgumentTypeMismatchException` escaped to the catch-all `Exception`
+handler as `INTERNAL_SERVER_ERROR`. That affected **every** `{id}` route, not just companies: any
+non-numeric id reported a server fault for what was a malformed request. Added an explicit handler
+returning `400 INVALID_PATH_PARAMETER`. A catch-all that returns 500 hides client errors as server
+errors — each one you can name deserves its own handler.
+
+### 3. A silent AI fallback that lied about which model answered
+
+The RAG returned a bullet-dumped extract starting mid-word — the *stub* format — while the response
+still reported `model: "gemini-3-flash-preview"`. `GeminiChatClient` holds
+`private final ChatClient fallback = new StubChatClient()` and degrades to it on any failure, but
+`model()` kept returning the configured Gemini name. So a degraded answer was **indistinguishable from
+a real one** — in the API response, in the persisted `coverage_answer` audit row, and in the UI.
+
+Fix: `ChatClient.answer()` now returns `Answer(text, model)` carrying the model that *actually*
+produced the text, and the fallback reports `stub-extractive (gemini-fallback)`. Also hardened the
+response parsing — `String.valueOf(p.get("text"))` spliced the literal string `"null"` into answers
+when a part carried no text, and reaching into `content.get("parts")` NPE'd when a candidate came back
+with no parts at all.
+
+**The principle:** graceful degradation is good; *silent* degradation is not. If a system can quietly
+serve a worse answer, it must say so — otherwise you cannot tell a healthy system from a broken one.
+
+### 4. My own "fix" made it worse — and the real quota was 100× smaller than assumed
+
+Having seen a `503 UNAVAILABLE` ("model experiencing high demand"), I added a retry. Measured after:
+degraded answers went from **1-in-8 to 8-in-12**. The retry was actively harmful, because the real
+error was not 503:
+
+```
+429 RESOURCE_EXHAUSTED
+quotaId: "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+limit: 20, model: gemini-3-flash   —   "Please retry in 28.7s"
+```
+
+Two compounding lessons:
+
+1. **Never retry a 429 on a short backoff.** The response stated its own retry delay (~28s); retrying
+   after 400 ms cannot succeed *and* spends another request against the exhausted quota. Retry 5xx
+   (genuinely transient); fail straight through on 429.
+2. **Read the `quotaId`, not the number.** `limit: 20` looked like a per-minute cap. It is
+   `RequestsPerDay` — `gemini-3-flash-preview` allows **20 chat requests per day** on the free tier. A
+   single recruiter browsing the demo would exhaust it in minutes. Verified empirically across models
+   with the same key: `gemini-2.5-flash` → 200 OK; `gemini-3-flash-preview` → 429 (20/day);
+   `gemini-2.0-flash` → 429 with **limit: 0** (no free quota at all). Default switched to
+   `gemini-2.5-flash`; after the switch, 6/6 questions returned real cited answers.
+
+**Interview framing:** *"Tell me about a time you made something worse."* — I diagnosed from the first
+error I saw instead of the error that was actually happening, and I shipped a retry without measuring
+it. The measurement is what caught it.
+
+### What the RAG actually does, verified live
+
+Ingested an 8-section motor policy wording → 7 chunks, real `gemini-embedding-001` vectors. Then:
+
+| Question | Answer | Correct source |
+|---|---|---|
+| NCB after 3 claim-free years | 35 percent | §6 ✅ |
+| Constructive Total Loss threshold | exceeds 75% of IDV | §7 ✅ |
+| Owner-driver PA cover | Rs 15,00,000 | §8 ✅ |
+| Driver under the influence | not covered | §4 ✅ |
+| Depreciation on glass | NIL | §3 ✅ |
+| Maternity expenses | *"The policy wording does not address this"* | correctly refused ✅ |
+
+The last row matters most: asked about cover that isn't in the document, it **declined rather than
+inventing a plausible number**. Tenant isolation held on the AI path too — asking about a product
+version belonging to another tenant returns 404, never a cross-tenant answer.
+
+### Regression tests added (6 new, in `TenantIsolationIntegrationTest`)
+
+Tenant admin can't list all companies (403) · auditor can't either (403) · can't read another tenant's
+company (404) · can't overwrite it (404 **and the row is asserted unchanged** — a 404 that still
+mutated would be the worse bug) · platform admin retains cross-tenant access (200) · `/companies/me`
+resolves from the token · non-numeric id is 400 not 500.
+
+One of them failed first time for a reason worth keeping: I sent a partial body and got 400, because
+**bean validation runs before the ownership check**. A security test that never reaches the guard it
+is testing is a false negative — the payload must be valid enough to get there.
 
 ---
 
