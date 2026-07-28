@@ -1,3 +1,7 @@
+> **⚠️ Design-era document — reconciled against the as-built schema on 2026-07-29.** This is an iterative pre-implementation draft. The authoritative schema is the **Flyway migrations `V1__…V32__`** (backend/src/main/resources/db/migration) and [`../domain-model.md`](../domain-model.md). Where this draft diverges, the migrations win; key deltas are flagged inline as **As-built** notes.
+>
+> **⚠️ Superseded:** this part is essentially superseded by [`../product-domain/product-database-design.md`](../product-domain/product-database-design.md), which reflects the shipped product/policy/RAG schema. Prefer that document for the product domain.
+
 # Database Design Part 14 - Insurance Product & Policy Domain
 
 Status: Draft
@@ -302,6 +306,8 @@ UNDERWRITING_GUIDE
 
 # Table: product_knowledge_base
 
+**As-built (2026-07-29):** there is no `product_knowledge_base` table and no `knowledge` schema. The shipped RAG layer (V22 `policy_ai_tables`, in the `public` schema) is **`policy_chunk`** (chunked + embedded policy text), with `coverage_answer` and `coverage_citation` capturing grounded Q&A. Vector search uses pgvector HNSW when `PGVECTOR_ENABLED`, with an in-Java cosine fallback otherwise. `product_document` (V29) links a product version to an uploaded `document`.
+
 Purpose:
 
 Stores references used by RAG.
@@ -343,6 +349,8 @@ to retrieve product-specific knowledge.
 ---
 
 # Claim Domain Changes
+
+**As-built (2026-07-29):** these columns already ship on `claim` (V11) — both `insurance_product_id` and `insurance_product_version_id` are NOT-NULL FKs, and the version is pinned by inheriting it from the claim's `insurance_policy` at creation time (the "store both IDs" rule below is exactly how it behaves).
 
 The claim table must be updated.
 

@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; the authoritative behaviour is the code. Where this diverges, the code wins ([`../architecture.md`](../architecture.md), [`../domain-model.md`](../domain-model.md)); deltas flagged inline as **As-built** notes.
+
 # 08.10 Audit Events
 
 ## Document Information
@@ -30,6 +32,8 @@ The Audit Module provides:
 * Historical Change Tracking
 
 The Audit Module consumes events from every module within ClaimLens.
+
+> **As-built (2026-07-29):** Auditing is real but **synchronous and annotation-driven, not event-consuming**. Methods marked `@Auditable(action, entityType)` are intercepted by `AuditAspect` (an AOP `@AfterReturning` advice): after the method returns successfully it writes one `audit_log` row (action, entityType, the first `Long` argument as entity id, user from the security context, tenant from `TenantContext`). A method that throws writes no audit. None of the events below are emitted: there are no separate `AUDIT_EVENT_CREATED`/`AUDIT_LOG_CREATED` events, no distinct `USER_ACTIVITY`/`SECURITY_EVENT` entities, no compliance-report generation, and **no audit-export worker or CSV/XLSX/PDF export** (nor the `AuditAttachment` entity, which was dropped). Audit rows are read back through `AuditController`; the 7-year retention/immutability rules are not enforced by configuration.
 
 ---
 

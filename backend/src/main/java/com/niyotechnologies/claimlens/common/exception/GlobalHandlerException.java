@@ -2,9 +2,13 @@ package com.niyotechnologies.claimlens.common.exception;
 
 
 import com.niyotechnologies.claimlens.common.response.ApiErrorResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.niyotechnologies.claimlens.common.response.ValidationErrorResponse;
@@ -12,12 +16,15 @@ import org.springframework.validation.FieldError;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.HashMap;
 import java.util.Map;
 @RestControllerAdvice
 public class GlobalHandlerException {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalHandlerException.class);
 
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleNotFound(
@@ -168,10 +175,67 @@ public class GlobalHandlerException {
                 );
     }
 
+    // A valid path called with an unmapped HTTP verb (e.g. DELETE /claims/1, GET on a PUT-only
+    // route) reaches Spring as HttpRequestMethodNotSupportedException. Without this it fell through
+    // to the catch-all as a 500 — reporting a server fault for what is a client method error. 405.
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiErrorResponse> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException ex
+    ) {
+
+        return ResponseEntity
+                .status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(
+                        ApiErrorResponse.of(
+                                "METHOD_NOT_ALLOWED",
+                                ex.getMethod() + " is not supported for this endpoint"
+                        )
+                );
+    }
+
+    // An upload larger than spring.servlet.multipart.max-file-size. Without this it escaped to the
+    // catch-all as a 500; the correct answer is 413 so the client knows the file was simply too big.
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiErrorResponse> handleUploadTooLarge(
+            MaxUploadSizeExceededException ex
+    ) {
+
+        return ResponseEntity
+                .status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(
+                        ApiErrorResponse.of(
+                                "FILE_TOO_LARGE",
+                                "The uploaded file exceeds the maximum allowed size"
+                        )
+                );
+    }
+
+    // A request with an unsupported Content-Type (e.g. text/plain to a JSON endpoint). Without this
+    // it fell through as a 500; the correct answer is 415.
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiErrorResponse> handleUnsupportedMediaType(
+            HttpMediaTypeNotSupportedException ex
+    ) {
+
+        return ResponseEntity
+                .status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                .body(
+                        ApiErrorResponse.of(
+                                "UNSUPPORTED_MEDIA_TYPE",
+                                "Content-Type '" + ex.getContentType() + "' is not supported"
+                        )
+                );
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleUnexpectedException(
             Exception ex
     ) {
+
+        // The response deliberately reveals nothing (no stack trace, no message) to avoid leaking
+        // internals — but the server MUST record it, or a real fault (and any attack that triggers
+        // one) leaves no trace. Log server-side only.
+        log.error("Unhandled exception", ex);
 
         return ResponseEntity
                 .internalServerError()

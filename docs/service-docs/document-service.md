@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; the authoritative behaviour is the service code. Where this diverges, the code wins ([`../architecture.md`](../architecture.md), [`../domain-model.md`](../domain-model.md), [`../audit-report.md`](../audit-report.md)); deltas flagged inline as **As-built** notes.
+
 # 09.3 Document Service Design
 
 ## Document Information
@@ -31,6 +33,8 @@ Responsibilities:
 * Processing Workflow Initiation
 
 The Document Module serves as the entry point into the OCR and Analysis pipeline.
+
+**As-built (2026-07-29):** documents are **nested under the claim** (`/claims/{claimId}/documents…`), not a top-level `/documents` base path. Versioning is **append-only** via a `document_version` table + a `currentVersionId` pointer on the `Document` that mirrors the latest upload — there is **no** activate / archive / delete / restore workflow and **no** single-"active"-version concept (`activateVersion`, `deleteDocument`, `restoreDocument` were not built). Storage sits behind a `DocumentStorage` interface (local filesystem by default; S3 / Cloudflare R2 in prod) rather than a dedicated `S3StorageService`. All methods are guarded at the service layer by `@PreAuthorize` — `CLAIM_WRITE` to upload, `CLAIM_READ` to list/download (not the `DOCUMENT_*` codes in §18).
 
 ---
 
@@ -449,6 +453,8 @@ JPG
 Maximum 25 MB
 ```
 
+**As-built (2026-07-29):** upload validation is **empty-only** — the service rejects an empty/unreadable file (`EMPTY_FILE` / `FILE_READ_FAILED`) but does **not** enforce a content-type allowlist. Size is capped by Spring multipart config at **10 MB per file / 15 MB per request**, returning **413** on oversize (not 25 MB). **Downloads are hardened via `common/util/SafeDownloads`** — a stored-XSS fix from the security audit: images and PDFs are served inline, everything else as `application/octet-stream` with `Content-Disposition: attachment`.
+
 ---
 
 ## Version Validation
@@ -537,6 +543,8 @@ Unlimited Historical Versions
 History Never Deleted
 ```
 
+**As-built (2026-07-29):** there is no "active version" toggle. Each `uploadNewVersion` appends the next `versionNumber` and repoints `Document.currentVersionId` (plus the mirror fields) to the new upload; older versions remain listable/downloadable. Legacy pre-versioning documents are back-filled to a synthetic v1 on first new-version upload so numbering stays contiguous. Incremental reprocessing (§15) is not per-document-diff: a customer response re-runs OCR + analysis over the **full** current document set.
+
 ---
 
 # 13. Active Version Workflow
@@ -602,6 +610,8 @@ audit.outbox_event
 ```
 
 before publishing.
+
+**As-built (2026-07-29):** no document events and no outbox are built (see `service-design.md` §11). Upload directly triggers processing via a synchronous `ProcessingOrchestrator` call from the claim flow.
 
 ---
 

@@ -62,7 +62,12 @@ Customer (the policyholder)
 
 **Claim lifecycle (the state machine):**
 `DRAFT → SUBMITTED → AWAITING_ANALYSIS → AWAITING_ASSIGNMENT → AWAITING_ACCEPTANCE →
-UNDER_INVESTIGATION → (WAITING_FOR_CUSTOMER) → APPROVED | REJECTED → CLOSED`, plus `REOPENED`.
+UNDER_INVESTIGATION → (WAITING_FOR_CUSTOMER) → APPROVED | REJECTED → CLOSED`, plus `REOPENED`
+(11 enum states; `isTerminal()` = APPROVED/REJECTED/CLOSED). Honest caveat for interviews:
+`REOPENED` is *defined* (enum + DB constraint + `reopened_at`) but **no transition is wired to it**
+in V1 — there's no reopen endpoint — so it's a designed-in, not-yet-reachable state. The live
+"come back to an active claim" path is the info-request loop (WAITING_FOR_CUSTOMER →
+UNDER_INVESTIGATION), which is a different flow.
 
 > Interview Q: *"Why so many states?"* — Because each is a distinct hand-off point (analysis done,
 > assignment made, investigator accepted, waiting on the customer). Fewer states would hide where a
@@ -118,10 +123,13 @@ Users → Load Balancer → Frontend → Backend API (Spring Boot modular monoli
 
 **Why the folder structure is "package-per-module":** each domain (`claim`, `document`, `fraud`, …)
 has an identical internal skeleton (`controller/service/repository/entity/dto/mapper/…`). Modules own
-their tables and talk via events, not by reaching into each other's repositories. That uniformity
-means the seams are already cut — a module can later become its own service without a rewrite. The
-cross-cutting packages (`common`, `config`, `security`, `tenancy`, `events`, `outbox`) sit *outside*
-the domain modules and never depend back on them.
+their tables and talk through each other's **services** (synchronous in-process calls), not by
+reaching into each other's repositories. That uniformity means the seams are already cut — a module
+can later become its own service without a rewrite. The cross-cutting packages (`common`, `config`,
+`security`, `tenancy`) sit *outside* the domain modules and never depend back on them. (Note: the
+`events` and `outbox` packages exist as reserved seams but are **empty in V1** — there is no event
+bus or transactional outbox yet; async work runs through DB job tables + a `@Scheduled` poller, and
+notifications are sent synchronously.)
 
 > Interview Q: *"When would you split a module into a real microservice?"* — When it needs
 > independent scaling or deployment cadence, or a different datastore. The event-based seams and
@@ -1727,3 +1735,103 @@ the signal the clamp needs.
 shape and the `?role=` filter on `/users`; it now asserts the page envelope on `/users` and the role
 filter on `/users/options`. That test failing was the system working: the contract moved, and the
 suite noticed.
+
+---
+
+## Pre-production security & QA audit — what I broke, what held, what I fixed
+
+I ran a full adversarial pass over ClaimLens as if it were about to be audited by senior engineers:
+live black-box + grey-box attacks against a running instance (nothing inferred — every claim was
+*executed*), plus a code review of the auth, tenancy, and upload paths. The full write-up with
+reproduction steps is in [`docs/audit-report.md`](./audit-report.md); the interview-relevant story is
+here.
+
+### What held up under direct attack (this is the part to lead with)
+
+I attacked the things that usually sink a multi-tenant SaaS, and they held:
+
+- **Tenant isolation.** I stood up a second "attacker" tenant and, as its admin, tried to read and
+  write tenant A's claims/customers/policies/users by direct id. Every attempt returned **404**, and
+  the attacker's own list endpoints returned only its own rows. The `@TenantId` discriminator is
+  appended to *every* query including `findById`, `isRoot()` is hardcoded `false` (the Hibernate
+  root-tenant backdoor deliberately shut), and an unbound tenant falls back to `SYSTEM_TENANT = -1L`,
+  which matches no real row.
+- **JWT.** `alg:none` forgery, an HS256 token signed with an attacker key, a tampered payload, and an
+  expired token were **all rejected 401**. Parsing pins the algorithm via `verifyWith(key)`, so
+  `alg:none` and RS256→HS256 confusion both fail; the secret has no default (fail-fast).
+- **The customer portal ownership gate.** As customer Rahul, every reach for customer Neha's data
+  returned 404, and filing a claim with Neha's `customerId`/`policyId` in the body failed — identity
+  comes from the JWT, the body is ignored. This second gate *below* tenant is the best-implemented part
+  of the codebase.
+- **SQL injection** (five payloads stored inert, no string-concatenated SQL anywhere), **IDOR
+  responses are 404 not 403** (no existence oracle), **secrets** (`.env` untracked, no defaults), and
+  **path traversal** (UUID-prefixed, sanitised keys) all checked out.
+
+Being able to say "I tried *this specific attack* and got *this specific 404*" is far stronger in an
+interview than "we use multi-tenancy."
+
+### What I found — and the one that matters most
+
+The gaps were in the layers *around* that solid core:
+
+1. **Critical — stored XSS via file upload.** A portal customer (lowest-privilege identity) could
+   upload `evil.html` with `Content-Type: text/html`; the download endpoint echoed that type back with
+   `Content-Disposition: inline`, and the frontend opens documents as a same-origin `blob:` URL where
+   the JWTs live in `localStorage`. So a *customer* could plant a script that steals an *adjuster's*
+   session. The bug was trusting the uploader's declared content type on the way back out.
+2. **High — brute-force bypass.** The login rate-limiter keyed on the leftmost `X-Forwarded-For`, which
+   the client controls. Measured: 26/26 spoofed-IP login attempts passed the limiter vs 20-pass/6-block
+   from a fixed IP.
+3. **High — impersonation is unaudited.** Platform-admin impersonation mints a normal tenant-admin
+   token with no `@Auditable` and no session record — correctly *scoped* (15-min, no refresh, confined
+   to one tenant) but forensically invisible, which is a compliance problem for a claims platform.
+4. **A cluster of error-handling defects** that turned client mistakes into `500`s: a valid path with
+   the wrong verb, a `text/plain` body, and an oversize upload all fell through the catch-all as `500`
+   instead of `405`/`415`/`413`.
+
+### What I fixed in this pass (all re-verified live)
+
+- **The XSS (C1).** New `SafeDownloads` helper: downloads serve an allowlist of render-safe types
+  (`image/*`, `pdf`) `inline`; everything else — including `text/html` and `svg` — is forced to
+  `application/octet-stream` + `attachment`, so it can never execute in the origin. Re-tested:
+  `evil.html` now downloads as octet-stream, a real PDF still renders inline.
+- **The 405/415/413 handlers** in `GlobalHandlerException` (+ an explicit 10 MB upload limit). Re-tested:
+  `DELETE /claims/1 → 405`, `text/plain → 415`, 11 MB upload → clean `413 FILE_TOO_LARGE`.
+- **The silent catch-all** now logs the exception server-side (body unchanged, so nothing leaks).
+- **Removed the `/error-test` debug endpoint.**
+- **Role-catalogue authz (L10).** `GET /roles` had no permission guard, so a portal *customer* could
+  enumerate every role. I traced the only caller (the user create/edit dialog, itself behind
+  `USER_WRITE`), then gated the service on `USER_READ`. Re-tested: customer → `403`, admin → `200`.
+
+I deliberately did **not** auto-apply the fixes that need a judgement call — switching the AI endpoints
+from a deny-list to `COVERAGE_READ` (needs a companion role-grant migration), the `X-Forwarded-For`
+fix (depends on the exact production proxy topology), and the impersonation audit trail (needs a
+migration) — because a wrong guess there breaks a working feature or a deploy. Knowing *which* fixes
+are safe to ship blind and which need a decision is itself the point.
+
+### Q&A this audit unlocks
+
+**Q: How do you know your tenant isolation actually works?** Because I attacked it: a second tenant's
+admin gets 404 on every cross-tenant id, and the discriminator is enforced in SQL on `findById`, not
+just in a hand-written `if`. The failure mode I was checking for is the one `@Filter` would miss —
+`EntityManager.find()` — and `@TenantId` covers it.
+
+**Q: A customer uploads a malicious file — what happens?** Today, after the fix, it's stored but served
+as a forced download with `application/octet-stream`, so it can't execute. The defense-in-depth I'd add
+next is a magic-byte allowlist on upload (Tika) and a CSP — the fix I shipped closes the exploit; those
+close the class.
+
+**Q: Why 404 and not 403 for a cross-tenant read?** A 403 confirms the record exists in another tenant
+— an existence oracle. 404 leaks nothing. It's applied consistently, which I verified.
+
+**Q: Your rate-limiter can be bypassed with a header — is rate-limiting useless then?** No — it works
+per-IP; the bug is *trusting the wrong hop* of `X-Forwarded-For`. Behind Render (which appends one
+hop) the fix is to read the rightmost-untrusted entry, plus a per-account lockout so the control
+doesn't depend on IP at all. And critically, it **fails open** by design — a Redis outage must never
+become a login outage — which is the right tradeoff for availability but means it's a speed bump, not a
+wall, and must be paired with account lockout.
+
+**Q: What breaks if you turn a 500 into a 405?** Nothing — that was the point. The 500s were the app
+mislabeling client errors as server faults, which also pollutes error dashboards and hides real
+incidents. The fix is purely in the exception mapper; no business logic touched, and the full test
+suite stayed green.

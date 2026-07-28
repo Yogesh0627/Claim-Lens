@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Deltas flagged inline as **As-built** notes.
+
 # 15.4 Policy Intelligence Service Design
 
 ## Document Information
@@ -33,6 +35,8 @@ Responsibilities:
 * AI Auditability
 
 The module transforms insurance documents into an enterprise-grade knowledge system.
+
+**As-built (2026-07-29):** Shipped as the `coverage` module (package `com.niyotechnologies.claimlens.coverage`), much leaner than this blueprint. The many fine-grained services below (PolicyIngestion, PolicyCopilot, CoverageValidation, InvestigationCopilot, ChatSession, AIAudit, dedicated workers) collapse into a single `CoverageService` plus small helpers: `TextChunker`, `Embeddings`, an `EmbeddingClient`/`ChatClient` pair (Gemini vs Stub implementations), and vector-search strategies (`PgVectorSearch` / `CosineVectorSearch`). Ingestion is synchronous on the knowledge endpoint, not an event-driven worker pipeline.
 
 ---
 
@@ -75,6 +79,8 @@ POLICY_KNOWLEDGE_REBUILT
 ---
 
 # 3. Package Structure
+
+**As-built (2026-07-29):** Actual package is `coverage`, with `controller` (`CoverageController`, `ProductKnowledgeController`), `service` (`CoverageService`, `TextChunker`, `Embeddings`, `PgVectorSearch`/`CosineVectorSearch`/`CoverageVectorSearch`, `PgVectorInitializer`), `ai` (`ChatClient`+`GeminiChatClient`/`StubChatClient`, `EmbeddingClient`+`GeminiEmbeddingClient`/`StubEmbeddingClient`, `FeatureHashEmbedding`), `entity` (`PolicyChunk`, `CoverageAnswer`, `CoverageCitation`), `repository`, and `dto`. No `worker`, `validator`, or per-copilot service classes.
 
 ```text
 policyintelligence
@@ -641,6 +647,8 @@ Knowledge Base Rebuild
 
 # 17. Gemini Integration
 
+**As-built (2026-07-29):** Gemini is used only when `AI_ENABLED=true` (`GeminiChatClient` + `GeminiEmbeddingClient`). With the flag off, an OFFLINE stub runs: `StubChatClient` returns an extractive answer from the retrieved chunks and `StubEmbeddingClient`/`FeatureHashEmbedding` produce 256-dim hash embeddings. This keeps the module fully functional (and testable) without any external AI dependency.
+
 Provider
 
 ```text
@@ -790,6 +798,8 @@ POLICY_AI_AUDIT_VIEW
 
 POLICY_AI_ADMIN
 ```
+
+**As-built (2026-07-29):** Permissions are `COVERAGE_READ` (ask + knowledge read) and `COVERAGE_WRITE` (knowledge ingest); the `POLICY_AI_*` codes were never created. Note the known deny-list authz gap on `/coverage/ask` (`isAuthenticated() && !PORTAL_CLAIM_READ` instead of `COVERAGE_READ`) — see `../audit-report.md` (M7).
 
 ---
 

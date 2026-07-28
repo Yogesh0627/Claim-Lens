@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built schema on 2026-07-29.** This is an iterative pre-implementation draft. The authoritative schema is the **Flyway migrations `V1__…V32__`** (backend/src/main/resources/db/migration) and [`../domain-model.md`](../domain-model.md). Where this draft diverges, the migrations win; key deltas are flagged inline as **As-built** notes.
+
 # Database Design Part 3 - Access Control Domain
 
 Status: Draft
@@ -21,6 +23,8 @@ These tables implement the Role-Based Access Control (RBAC) system used througho
 ---
 
 # RBAC Design Principles
+
+**As-built (2026-07-29):** `role` and `permission` are **global** catalogs (no `tenant_id`); a third table **`tenant_role_permission`** (V30) holds per-tenant grant/revoke overrides on top of the global `role_permission` map. The 11 shipped role codes are: TENANT_ADMIN, PRODUCT_MANAGER, CLAIMS_MANAGER, INVESTIGATION_MANAGER, INVESTIGATOR, CLAIMS_ADJUSTER, CUSTOMER_SUPPORT, AUDITOR, ANALYST, PLATFORM_ADMIN, CUSTOMER (NOT the COMPANY_ADMIN/REGIONAL_ADMIN/EMPLOYEE set below). Permission codes follow `{MODULE}_{ACTION}` (e.g. `CLAIM_READ`, `CLAIM_WRITE`, `CLAIM_SUBMIT`, `CLAIM_ASSIGN`, `CLAIM_DECIDE`, `CLAIM_INVESTIGATE`, `RULESET_READ/WRITE`, `USER_READ/WRITE`), NOT verb-first `CREATE_CLAIM`/`VIEW_CLAIM`.
 
 ClaimLens follows:
 
@@ -357,6 +361,8 @@ Authorize Request
 
 # Redis Authorization Cache
 
+**As-built (2026-07-29):** permissions are resolved server-side per request and cached — **Caffeine in dev, Redis (Upstash) only under the prod profile**. The effective permission set is `role_permission` combined with per-tenant `tenant_role_permission` overrides. The JWT carries `roleId` (not a permission list).
+
 Key Format
 
 ```text
@@ -577,6 +583,8 @@ Customer
 ---
 
 # Table: user
+
+**As-built (2026-07-29):** the shipped table is **`app_user`** (not the reserved word `user`). Region is NOT a single `region_id` column — investigator region membership is a many-to-many via **`app_user_region`** (V31). The auth/session/invite surface adds **`user_session`** (refresh tokens, SHA-256 hashed at rest; V6) and **`user_invitation`** (invite/reset tokens; V27), which this draft omits.
 
 Purpose:
 

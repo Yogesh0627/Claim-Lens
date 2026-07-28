@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Concrete divergences are flagged inline as **As-built** notes.
+
 # 07.13 Dashboard & KPI API
 
 ## Document Information
@@ -86,6 +88,8 @@ INVESTIGATOR
 | OPERATIONS_DASHBOARD_VIEW | View operations dashboard |
 | KPI_EXPORT                | Export dashboard data     |
 
+**As-built (2026-07-29):** There is NO `/api/v1/dashboard/**` module. The single shipped dashboard endpoint is `GET /api/v1/analytics/dashboard` (permission `ANALYTICS_READ`), returning one aggregated object computed on-request. None of the executive/claims/investigation/fraud/operations/investigator dashboard endpoints, KPI-card, trend, widget, real-time-monitoring, system-health, live-activity, or dashboard-export endpoints below were built, and there is no `analytics_snapshot`/`dashboard_metric` table or Redis dashboard cache. The permission codes `DASHBOARD_VIEW`, `EXECUTIVE_DASHBOARD_VIEW`, `FRAUD_DASHBOARD_VIEW`, `OPERATIONS_DASHBOARD_VIEW`, and `KPI_EXPORT` do not exist; the only permission gating dashboard data is `ANALYTICS_READ`.
+
 ---
 
 # 4. Global Dashboard Filters
@@ -113,6 +117,8 @@ GET /api/v1/dashboard/executive?fromDate=2026-06-01&toDate=2026-06-30
 ---
 
 # 5. Executive Dashboard APIs
+
+**As-built (2026-07-29):** Not built — see the module-wide note in §3. Sections 5–13 describe a design-era dashboard surface that was never implemented; the shipped surface is the single `GET /api/v1/analytics/dashboard` endpoint (`ANALYTICS_READ`).
 
 Executive dashboard provides a business-wide overview.
 

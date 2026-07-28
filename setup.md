@@ -42,7 +42,7 @@ psql -U postgres -c "CREATE DATABASE claimlens_test;"
 docker compose up -d          # starts postgres:17 on :5432 and redis:7 on :6379
 ```
 
-> You do **not** create tables by hand — **Flyway** runs all 27 migrations automatically on the first backend start. ✨
+> You do **not** create tables by hand — **Flyway** runs all 32 migrations automatically on the first backend start. ✨
 
 ---
 
@@ -163,7 +163,7 @@ All off by default; the app works without any of them. Add keys in `backend/.env
 ```bash
 cd backend
 ./mvnw test          # reads backend/.env automatically; no env vars to pass
-# → 92 tests, 3 skipped (a live-Vision test and two manual email senders — all gated behind env vars)
+# → 106 tests, 3 skipped (a live-Vision test and two manual email senders — all gated behind env vars)
 ```
 
 Tests run against the **`claimlens_test`** database and never touch your dev data.

@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; the authoritative behaviour is the code. Where this diverges, the code wins ([`../architecture.md`](../architecture.md), [`../domain-model.md`](../domain-model.md)); deltas flagged inline as **As-built** notes.
+
 # 08.3 Document Events
 
 ## Document Information
@@ -29,6 +31,8 @@ The Document Module is one of the most important producers in ClaimLens because 
 * Audit Logging
 
 Document events drive the majority of asynchronous processing in the platform.
+
+> **As-built (2026-07-29):** None of the document events below are emitted — there is no event bus/outbox. Uploading a document does **not** itself kick processing; instead, OCR + analysis jobs are created once, at **claim submission**, by `ProcessingOrchestrator.onClaimSubmitted` (per-claim `ocr_job`/`analysis_job` rows), and re-created on a customer's answer to an information request via `onCustomerResponse`. Document versioning (`document_version`, migrations V25/V29) is a stored-history feature, not an event stream: there are no `DOCUMENT_VERSION_CREATED/ACTIVATED/ARCHIVED`, `DOCUMENT_VALIDATED`, `DOCUMENT_(RE)PROCESS_REQUESTED`, `DOCUMENT_DELETED/RESTORED` events, and no per-version selective reprocessing — reprocessing re-runs OCR/analysis over the claim's current document set. Downstream "consumer" modules do not subscribe to anything.
 
 ---
 

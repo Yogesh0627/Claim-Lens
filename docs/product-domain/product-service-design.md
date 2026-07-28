@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Deltas flagged inline as **As-built** notes.
+
 # 14.4 Insurance Product Service Design
 
 ## Document Information
@@ -68,6 +70,8 @@ PRODUCT_DOCUMENT_REMOVED
 ---
 
 # 3. Package Structure
+
+**As-built (2026-07-29):** The `product` package ships `ProductService` + `ProductServiceImpl` (product **and** version lifecycle folded together — no separate `ProductVersionService`/`ProductLifecycleService`), `ProductDocumentService`, controllers `ProductController` + `ProductDocumentController`, repositories (`InsuranceProductRepository`, `InsuranceProductVersionRepository`, `ProductDocumentRepository`, `ClaimTypeRepository`), entities (`InsuranceProduct`, `InsuranceProductVersion`, `ProductDocument`, `ClaimType`), `enums` (`ProductStatus`, `ProductVersionStatus`), `dto`, and `mapper`.
 
 ```text
 product
@@ -177,6 +181,8 @@ void retireProduct(
     Long productId
 );
 ```
+
+**As-built (2026-07-29):** No retire-product / retire-version operation shipped (no `/retire` endpoints). Activating a version implicitly expires the previously-active one; `ProductVersionStatus` still carries the lifecycle values.
 
 ---
 
@@ -736,6 +742,8 @@ PRODUCT_VERSION_ACTIVATE
 
 PRODUCT_DOCUMENT_ATTACH
 ```
+
+**As-built (2026-07-29):** Collapsed to two codes — `PRODUCT_READ` and `PRODUCT_WRITE` — enforced at the service layer via `@PreAuthorize(hasAuthority(...))`. Tenant isolation is Hibernate `@TenantId`, not a hand-written `tenant_id` filter on every query.
 
 ---
 

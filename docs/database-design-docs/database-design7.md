@@ -1,4 +1,8 @@
+> **⚠️ Design-era document — reconciled against the as-built schema on 2026-07-29.** This is an iterative pre-implementation draft. The authoritative schema is the **Flyway migrations `V1__…V32__`** (backend/src/main/resources/db/migration) and [`../domain-model.md`](../domain-model.md). Where this draft diverges, the migrations win; key deltas are flagged inline as **As-built** notes.
+
 # Database Design Part 13 - Analytics & Audit Domain
+
+**As-built (2026-07-29):** everything here lives in the single **`public` schema** (no `analytics` or `audit` Postgres schema). **Analytics built no tables at all** — `analytics_snapshot` and `dashboard_metric` do not exist; dashboards are live aggregate queries over `claim` and `fraud_score` (`ANALYTICS_READ` permission, V18). For audit, only **`audit_log`** shipped (V17, append-only: `action`, `entity_type`, `entity_id`, `details`, written by an `AuditAspect` on `@Auditable` actions). The **`audit_event` catalog table was NOT built** (no `audit_event_id`/`correlation_id`/`previous_state`/`new_state` columns).
 
 Status: Draft
 

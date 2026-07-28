@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; the authoritative behaviour is the service code. Where this diverges, the code wins ([`../architecture.md`](../architecture.md), [`../domain-model.md`](../domain-model.md), [`../audit-report.md`](../audit-report.md)); deltas flagged inline as **As-built** notes.
+
 # 09.7 Fraud Service Design
 
 ## Document Information
@@ -31,6 +33,8 @@ Responsibilities:
 * Fraud Analytics Support
 
 The Fraud Module is the primary decision engine of ClaimLens.
+
+**As-built (2026-07-29):** the built module is a **weighted, explainable `FraudEngine`** plus a `FraudScore` entity and rule implementations — there is **no** alert workflow, review workflow, or manual override. `FraudAlert` / `FraudCase` / `FraudRuleExecution` entities were **dropped**. `evaluate()` is invoked by the **processing fraud-gate** (not a controller): it loads the tenant's ACTIVE ruleset for the claim type from **`fraud_ruleset`** (module `ruleset`, configured via `/rulesets/fraud`), sums the enabled rules' weights, classifies the 0–100 total, persists a `FraudScore` (with a per-rule `explanation` string), and moves the claim to **AWAITING_ASSIGNMENT**. If no ruleset is configured it falls back to built-in default weights/thresholds. Fraud *confirmation* is recorded later, at claim `decide` (the `fraud_confirmed` flag).
 
 ---
 
@@ -294,6 +298,8 @@ HIGH
 CRITICAL
 ```
 
+**As-built (2026-07-29):** three tiers only — **LOW / MEDIUM / HIGH**; there is **no CRITICAL**. `risk = score ≥ highThreshold ? HIGH : score ≥ mediumThreshold ? MEDIUM : LOW`, with per-ruleset thresholds (built-in defaults: MEDIUM ≥ 25, HIGH ≥ 50).
+
 ---
 
 ## Configuration
@@ -305,6 +311,8 @@ fraud_policy
 ```
 
 Not hardcoded.
+
+**As-built (2026-07-29):** configuration lives in **`fraud_ruleset`** + `fraud_rule` (module `ruleset`), not `fraud_policy`. Each rule carries a `code`, `enabled` flag and integer `weight`; the ruleset carries the medium/high thresholds. Managed via `/rulesets/fraud` (`RULESET_READ` / `RULESET_WRITE`).
 
 ---
 
@@ -393,6 +401,8 @@ POST /fraud/alerts/{alertId}/close
 
 POST /fraud/claims/{claimId}/override
 ```
+
+**As-built (2026-07-29):** none of these endpoints exist. The only fraud HTTP surface is **`GET /fraud/evaluation/dataset`** (`FRAUD_READ`) — an evaluation dataset export. Scoring itself has no endpoint; it runs inside the processing gate. Fraud config is exposed under `/rulesets/fraud` (see §9). Consequently the `FraudService` methods in §13 (`acknowledgeAlert`, `closeAlert`, `overrideScore`) and the alert/review services in §3/§10/§11 were **not built**.
 
 ---
 
@@ -668,6 +678,8 @@ FRAUD_REVIEW
 
 FRAUD_OVERRIDE
 ```
+
+**As-built (2026-07-29):** the real codes are **`FRAUD_READ`** (the evaluation dataset) and **`RULESET_READ` / `RULESET_WRITE`** (ruleset config). There is no review/override permission because those flows were not built. Tenant isolation is automatic via `@TenantId`.
 
 ---
 

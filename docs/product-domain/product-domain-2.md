@@ -1,3 +1,7 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Deltas flagged inline as **As-built** notes.
+
+**As-built (2026-07-29):** This file is a near-duplicate of [`insurance-product-domain.md`](./insurance-product-domain.md) (14.1); the two cover the same domain with slightly different emphasis. The one substantive addition here — a `ProductKnowledgeBase` entity — was **not built**: RAG knowledge shipped in the separate `coverage` module as `PolicyChunk` (+ `CoverageAnswer`/`CoverageCitation`), populated from product-version documents. See [`../ai-layer/policy-intelligence-domain.md`](../ai-layer/policy-intelligence-domain.md).
+
 # Insurance Product Domain
 
 Status: Approved
@@ -217,6 +221,8 @@ ProductDocument
 ---
 
 ## ProductKnowledgeBase
+
+**As-built (2026-07-29):** Not built under this name or in this module. Searchable knowledge is the `coverage` module's `PolicyChunk` (with pgvector or in-Java cosine retrieval), keyed to a product version — see the ai-layer docs.
 
 Represents searchable knowledge generated from policy documents.
 
@@ -499,6 +505,8 @@ ProductDocument
 
 ProductKnowledgeBase
 ```
+
+**As-built (2026-07-29):** The `product` module ships `InsuranceProduct`, `InsuranceProductVersion`, and `ProductDocument` only. `ProductKnowledgeBase` maps to the `coverage` module's `PolicyChunk`/`CoverageAnswer`/`CoverageCitation`.
 
 Supports
 

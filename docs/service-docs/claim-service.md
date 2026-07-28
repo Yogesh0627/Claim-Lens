@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; the authoritative behaviour is the service code. Where this diverges, the code wins ([`../architecture.md`](../architecture.md), [`../domain-model.md`](../domain-model.md), [`../audit-report.md`](../audit-report.md)); deltas flagged inline as **As-built** notes.
+
 # 09.2 Claim Service Design
 
 ## Document Information
@@ -31,6 +33,8 @@ Responsibilities:
 * Claim History Tracking
 
 The Claim Module acts as the primary aggregate root for the insurance claim lifecycle.
+
+**As-built (2026-07-29):** the module ships as a **three-step intake** — `createDraft` → upload documents → `submit` — with a much smaller surface than described here. Comments and tags were **not built** (no `ClaimComment`/`ClaimTag`/`ClaimTagMapping`); the only supporting entity is `ClaimStatusHistory`. The unique claim number is generated at **DRAFT** (`generateClaimNumber()`), and `submit` moves the claim to **AWAITING_ANALYSIS** (background OCR + analysis, then the fraud gate). The status enum has **11 values** (`DRAFT, SUBMITTED, AWAITING_ANALYSIS, AWAITING_ASSIGNMENT, AWAITING_ACCEPTANCE, UNDER_INVESTIGATION, WAITING_FOR_CUSTOMER, APPROVED, REJECTED, CLOSED, REOPENED`) — there is **no `CANCELLED`** and no `UNDER_REVIEW`; `REOPENED` exists but its transition is not wired.
 
 ---
 
@@ -178,6 +182,9 @@ POST   /claims/{claimId}/information-responses
 GET    /claims/{claimId}/history
 ```
 
+**As-built (2026-07-29):** the real surface is workflow-verb based, each guarded by `@PreAuthorize` on the impl method (permission in parens):
+`POST /claims` (createDraft, `CLAIM_WRITE`) · `POST /claims/{id}/submit` (`CLAIM_SUBMIT`) · `POST /claims/{id}/assign` · `POST /claims/{id}/auto-assign` · `POST /claims/{id}/reassign` (all `CLAIM_ASSIGN`) · `POST /claims/{id}/decision` (`CLAIM_DECIDE`) · `POST /claims/{id}/request-information` (`CLAIM_INVESTIGATE`) · `GET /claims/{id}` and `GET /claims?page&size`→`PagedResponse` (`CLAIM_READ`). There is **no** `PUT /claims/{id}`, no `PATCH …/status`, and no comments/tags/history endpoints. Documents live under `/claims/{id}/documents`; investigation notes under `/claims/{id}/investigation-notes`; the status timeline is served to the portal as `/portal/claims/{id}/timeline`.
+
 ---
 
 # 6. Service Layer
@@ -187,6 +194,8 @@ GET    /claims/{claimId}/history
 ```java
 public interface ClaimService
 ```
+
+**As-built (2026-07-29):** the built methods are `createDraft`, `submit`, `assign`/`autoAssign`/`reassign`, `decide`, `requestInformation`, `getClaim`, `getClaims` (paginated). `submit` runs `ClaimSubmissionValidator` (hard failures throw and reject; soft signals return as warnings — never a rejection). `assign`/`autoAssign` require the claim at **AWAITING_ASSIGNMENT**, create a `ClaimAssignment` and move the claim straight to **UNDER_INVESTIGATION** — there is **no separate acceptance step** wired (despite the `AWAITING_ACCEPTANCE` enum value). `reassign` only works while UNDER_INVESTIGATION: it retires live assignments (`ASSIGNED`→`REASSIGNED`) and creates a new one. `decide` (APPROVE/REJECT) sets `fraud_confirmed` on the claim (false on approve; on reject only if the investigator flags it). `requestInformation` moves UNDER_INVESTIGATION → WAITING_FOR_CUSTOMER; a customer document upload while waiting flips it back to UNDER_INVESTIGATION and re-runs processing.
 
 ---
 
@@ -442,6 +451,8 @@ Policy Validation
 Tenant Validation
 ```
 
+**As-built (2026-07-29):** implemented as `ClaimSubmissionValidator`, run at **submit**. HARD checks (throw → reject): incident date not in the future, `POLICY_NOT_ACTIVE_ON_LOSS_DATE`, `CLAIMANT_NOT_POLICYHOLDER`, `VEHICLE_NOT_COVERED_BY_POLICY`, and **`DUPLICATE_CLAIM_EXISTS`** (another non-terminal claim for the same policy + normalized vehicle reg + incident date). SOFT signal (never rejects, returned as a warning): `POTENTIAL_OVER_LIMIT_CLAIM` (amount over sum insured). Tenant validation is **not** in this validator — it is automatic via Hibernate `@TenantId`.
+
 ---
 
 ## Example
@@ -624,6 +635,8 @@ CLAIM_UPDATE
 CLAIM_CLOSE
 ```
 
+**As-built (2026-07-29):** the real permission codes are `CLAIM_READ`, `CLAIM_WRITE`, `CLAIM_SUBMIT`, `CLAIM_ASSIGN`, `CLAIM_DECIDE`, `CLAIM_INVESTIGATE`, enforced via `@PreAuthorize("hasAuthority('…')")` on the impl methods (service layer, not the controller).
+
 ---
 
 Tenant Isolation:
@@ -632,6 +645,8 @@ Tenant Isolation:
 Every Query Must Filter
 By tenant_id
 ```
+
+**As-built (2026-07-29):** not hand-filtered — isolation is automatic via Hibernate `@TenantId`; a cross-tenant claim id returns **404**.
 
 ---
 
@@ -748,6 +763,8 @@ AI Claim Summaries
 
 Duplicate Claim Detection
 ```
+
+**As-built (2026-07-29):** **Duplicate Claim Detection shipped in V1**, not V2 — it is a hard submit-time check (`DUPLICATE_CLAIM_EXISTS`, see §10). Also note the design's event/outbox integration (§12, §17) is not built: notifications and audit are direct synchronous in-transaction calls (see `service-design.md` §11).
 
 ---
 

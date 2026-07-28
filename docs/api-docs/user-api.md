@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Concrete divergences are flagged inline as **As-built** notes.
+
 # 07.4 User Management API
 
 ## Document Information
@@ -32,6 +34,10 @@ CUSTOMER_SUPPORT
 AUDITOR
 ANALYST
 ```
+
+**As-built (2026-07-29):** roles are global `Role` records; the 11 shipped codes are `TENANT_ADMIN, PRODUCT_MANAGER, CLAIMS_MANAGER, INVESTIGATION_MANAGER, INVESTIGATOR, CLAIMS_ADJUSTER, CUSTOMER_SUPPORT, AUDITOR, ANALYST, PLATFORM_ADMIN, CUSTOMER`. There is no `SYSTEM_ADMIN` (the platform-level role is `PLATFORM_ADMIN`); `PRODUCT_MANAGER` and `CUSTOMER` are present but not listed here.
+>
+> The shipped user/role surface is narrower than this doc: **`GET /users?page&size`** (`USER_READ`, `PagedResponse`), **`GET /users/options?role=`** (`USER_READ`, unpaged — this replaces the old `roleId` list filter, `/users/search`, and `/users/investigators`), **`POST /users`** (`USER_WRITE`), **`PUT /users/{id}`** (`USER_WRITE`). Plus roles: `GET /roles`, `GET /roles/{id}`, `GET /roles/catalog`, `GET /roles/permission-catalog` (all `USER_READ`), `PUT /roles/{id}/permissions` (`USER_WRITE`). Plus self-service profile: `GET/PUT /profile` and `POST /profile/change-password` (all `isAuthenticated`). There is **no** single `GET /users/{id}`, no delete, no activate/deactivate, no branch-assignment, no admin reset-password endpoint.
 
 This module provides APIs for:
 
@@ -84,6 +90,8 @@ insurance_company
 | CUSTOMER_CREATE    | Create customers         |
 | CUSTOMER_UPDATE    | Update customers         |
 
+**As-built (2026-07-29):** the fine-grained permissions above collapse to two pairs. Users **and** roles use **`USER_READ` / `USER_WRITE`**; customers use **`CUSTOMER_READ` / `CUSTOMER_WRITE`**. There are no separate `USER_ACTIVATE/DEACTIVATE/ASSIGN_BRANCH` or `CUSTOMER_CREATE/UPDATE` codes.
+
 ---
 
 # 4. User APIs
@@ -97,6 +105,8 @@ insurance_company
 ```http
 POST /api/v1/users
 ```
+
+**As-built (2026-07-29):** requires **`USER_WRITE`**. New staff are provisioned by invitation (a `UserInvitation` + `POST /auth/set-password`), so there is no password field in the create payload.
 
 ### Permissions
 
@@ -167,6 +177,8 @@ USER_CREATED
 GET /api/v1/users/{userId}
 ```
 
+**As-built (2026-07-29):** not built — there is no single-user GET. Read users from the paginated `GET /users?page&size` (`USER_READ`) or the picker `GET /users/options?role=`.
+
 ### Permissions
 
 ```text
@@ -199,6 +211,8 @@ USER_VIEW
 ```http
 PUT /api/v1/users/{userId}
 ```
+
+**As-built (2026-07-29):** requires **`USER_WRITE`**.
 
 ### Request Body
 
@@ -234,6 +248,8 @@ USER_UPDATED
 DELETE /api/v1/users/{userId}
 ```
 
+**As-built (2026-07-29):** not built — users cannot be deleted via the API (deactivation-by-delete was not implemented).
+
 ### Description
 
 Soft delete user.
@@ -264,6 +280,8 @@ USER_DELETED
 ```http
 GET /api/v1/users
 ```
+
+**As-built (2026-07-29):** `GET /users?page&size` (`USER_READ`) returns a `PagedResponse` but does **not** support the `roleId/branchId/email/employeeCode` filters shown. To fetch users by role for pickers, use the unpaged **`GET /users/options?role=<CODE>`** (`USER_READ`).
 
 ### Query Parameters
 
@@ -308,6 +326,8 @@ GET /api/v1/users?roleId=5&status=ACTIVE
 ---
 
 # 5. User Status Management APIs
+
+**As-built (2026-07-29):** not built — there are no `/users/{id}/activate` or `/deactivate` endpoints. User status is set through `PUT /users/{id}` (`USER_WRITE`).
 
 ---
 
@@ -377,6 +397,8 @@ USER_DEACTIVATED
 ---
 
 # 6. User Branch Assignment APIs
+
+**As-built (2026-07-29):** not built as standalone endpoints. Branch/region scoping is persisted via `UserBranchAssignment` and `app_user_region` and set as part of user create/update (`USER_WRITE`), not via `/users/{id}/branch-assignments`.
 
 ---
 
@@ -477,6 +499,8 @@ USER_BRANCH_UNASSIGNED
 POST /api/v1/customers
 ```
 
+**As-built (2026-07-29):** requires **`CUSTOMER_WRITE`**. Customers also support **`DELETE /customers/{id}`** (`CUSTOMER_WRITE`, soft delete) — not shown in this doc.
+
 ### Permissions
 
 ```text
@@ -553,6 +577,8 @@ GET /api/v1/customers/{customerId}
 PUT /api/v1/customers/{customerId}
 ```
 
+**As-built (2026-07-29):** requires **`CUSTOMER_WRITE`**. Single-customer read `GET /customers/{id}` uses `CUSTOMER_READ`.
+
 ### Request Body
 
 ```json
@@ -585,6 +611,8 @@ CUSTOMER_UPDATED
 GET /api/v1/customers
 ```
 
+**As-built (2026-07-29):** `GET /customers?page&size` (`CUSTOMER_READ`) returns a `PagedResponse`; a sibling unpaged **`GET /customers/options`** (`CUSTOMER_READ`) feeds pickers. The `customerNumber/email/phoneNumber` filters shown are not supported.
+
 ### Query Parameters
 
 ```text
@@ -611,6 +639,8 @@ phoneNumber
 ---
 
 # 8. Search APIs
+
+**As-built (2026-07-29):** not built. There are no `/users/search` or `/customers/search` endpoints — the paginated list endpoints plus the `/users/options?role=` and `/customers/options` pickers cover these needs.
 
 ---
 
@@ -688,6 +718,8 @@ GET /api/v1/customers/search?q=rahul
 
 # 9. Investigator Directory APIs
 
+**As-built (2026-07-29):** not built as a dedicated `/users/investigators` endpoint. Use **`GET /users/options?role=INVESTIGATOR`** (`USER_READ`) to list investigators for assignment pickers.
+
 ---
 
 ## Get Available Investigators
@@ -731,6 +763,8 @@ Used by:
 ---
 
 # 10. Administrative Password APIs
+
+**As-built (2026-07-29):** not built as an admin `/users/{id}/reset-password` endpoint. Password lifecycle runs through the auth module: self-service **`POST /profile/change-password`** (`isAuthenticated`), and the public **`POST /auth/forgot-password`** → **`POST /auth/set-password`** reset/invitation flow (SHA-256-hashed single-use tokens).
 
 ---
 

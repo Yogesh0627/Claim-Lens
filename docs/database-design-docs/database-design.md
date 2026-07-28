@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built schema on 2026-07-29.** This is an iterative pre-implementation draft. The authoritative schema is the **Flyway migrations `V1__…V32__`** (backend/src/main/resources/db/migration) and [`../domain-model.md`](../domain-model.md). Where this draft diverges, the migrations win; key deltas are flagged inline as **As-built** notes.
+
 # ClaimLens - Database Design
 
 Status: Draft
@@ -69,6 +71,8 @@ tenant_id BIGINT NOT NULL
 ---
 
 # Schema Strategy
+
+**As-built (2026-07-29):** the shipped database uses a **single `public` Postgres schema** only. The separate `processing`, `audit`, and `analytics` schemas described below were NOT created — all tables live in `public`. Also, several tables named in these examples were never built: `audit_event` (only append-only `audit_log` exists), `analytics_snapshot`, `dashboard_metric`, and `notification_job` (notifications are a single `notification` table). See the per-domain As-built notes for authoritative table lists.
 
 Database Schemas
 
@@ -225,6 +229,8 @@ Reason:
 
 # Business Identifier Strategy
 
+**As-built (2026-07-29):** PKs are `BIGSERIAL`/`BIGINT` (`Long`) as stated. In addition, externally-addressable aggregates (e.g. `claim`, `document`, `customer`) also carry a `public_id UUID` column (used in URLs) — internal `id` is never exposed, `public_id` is.
+
 Internal IDs are never exposed.
 
 Business identifiers are exposed.
@@ -256,6 +262,8 @@ HDFC_INV_000001
 ---
 
 # Tenant Strategy
+
+**As-built (2026-07-29):** multi-tenancy is enforced via a Hibernate `@TenantId` discriminator (`tenant_id`) on tenant-scoped tables (`TenantAwareEntity`). `InsuranceCompany`, `Role`, and `Permission` are **global** (extend `BaseEntity`, no `tenant_id`) — Role/Permission are shared platform catalogs, with per-tenant overrides in `tenant_role_permission` (V30).
 
 InsuranceCompany acts as the tenant root.
 
@@ -572,6 +580,8 @@ V3__claim_tables.sql
 
 etc.
 
+**As-built (2026-07-29):** the authoritative migration set is **V1–V32**, and V3 is `access_control_tables` (NOT `claim_tables`; claims land at V11). Exact ordered list: V1 initial_schema, V2 organization_tables, V3 access_control_tables, V4 user_tables, V5 permission_seed, V6 auth_tables, V7 customer_tables, V8 reference_data_tables, V9 product_tables, V10 insurance_policy_tables, V11 claim_tables, V12 document_tables, V13 claim_assignment_tables, V14 processing_tables, V15 fraud_ruleset_tables, V16 investigation_tables, V17 audit_tables, V18 notification_analytics_tables, V19 user_read_permission, V20 ocr_result_tables, V21 analysis_result_tables, V22 policy_ai_tables, V23 platform_admin, V24 user_write_permission, V25 document_version_tables, V26 customer_portal, V27 user_invitation_tables, V28 tenant_archived_status, V29 product_document_tables, V30 tenant_role_permission, V31 app_user_region, V32 claim_fraud_confirmed.
+
 ---
 
 # Performance Guidelines
@@ -595,6 +605,20 @@ Create indexes before production deployment.
 ---
 
 # Domain-to-Table Mapping
+
+**As-built (2026-07-29):** this mapping is aspirational and diverges heavily from what shipped. Notable deltas:
+- **Access Control:** `role`, `permission`, `role_permission` exist; add `tenant_role_permission` (per-tenant overrides, V30).
+- **User:** the table is `app_user` (not `user`); plus `user_session`, `user_invitation`, `user_branch_assignment`, and `app_user_region` (V31).
+- **Policy/Product:** no `claim_type_policy`/`required_document_policy`/`assignment_policy`/`fraud_policy`/`sla_policy`/`analysis_strategy`. Instead: `insurance_product`, `insurance_product_version`, `product_document`, `insurance_policy`, `insured_vehicle`, and config-driven fraud lives in **`fraud_ruleset`/`fraud_rule`** (NOT `fraud_policy`).
+- **Claim:** `claim` + append-only `claim_status_history` only. No `claim_history`/`claim_comment`/`claim_tag`/`claim_tag_mapping`.
+- **Document:** `document`, `document_version`, `coverage_answer`/`coverage_citation`/`policy_chunk` (AI/RAG).
+- **Assignment:** collapsed to `claim_assignment` (no `assignment_history`/`assignment_queue`).
+- **Investigation:** collapsed to a single `investigation_note` (no `investigation`/`investigation_report`/`investigation_finding`/`investigation_evidence`).
+- **Processing/OCR:** `claim_processing_state`, `ocr_job`/`analysis_job`/`fraud_job`, `ocr_result`/`analysis_result`. No `ocr_field_extraction`.
+- **Fraud:** `fraud_score` only (append-only); no `fraud_alert`/`fraud_case`.
+- **Notification:** single `notification` table; no `notification_template`/`notification_delivery`.
+- **Analytics:** none built (no `analytics_snapshot`/`dashboard_metric`).
+- **Audit:** `audit_log` only (append-only); no separate `audit_event`.
 
 Organization Domain
 

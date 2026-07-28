@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; the authoritative behaviour is the service code. Where this diverges, the code wins ([`../architecture.md`](../architecture.md), [`../domain-model.md`](../domain-model.md), [`../audit-report.md`](../audit-report.md)); deltas flagged inline as **As-built** notes.
+
 # 09.6 Processing Service Design
 
 ## Document Information
@@ -41,6 +43,8 @@ Analysis Service
         ↓
 Fraud Module
 ```
+
+**As-built (2026-07-29):** this is the one module that matches the design closely — with the key difference that it is **DB-queue + poller driven, not event/outbox driven** (there is no outbox; see `service-design.md` §11). On `submit`, `ProcessingOrchestrator.onClaimSubmitted` creates one `ClaimProcessingState` row plus per-claim `ocr_job` and `analysis_job` rows. A `@Scheduled` `ProcessingScheduler` (default 3s, disabled under the test profile) drains the OCR, analysis and fraud queues each tick via each worker's `pollOnce()`, using **`FOR UPDATE SKIP LOCKED`** claim-and-mark. The **fraud gate** is an atomic conditional `UPDATE` (`stateRepository.tryQueueFraud`) that queues **exactly one** `fraud_job` only when both OCR and analysis are COMPLETE and fraud is NOT_STARTED. On fraud completion `FraudEngine` moves the claim to **AWAITING_ASSIGNMENT**.
 
 ---
 
@@ -333,6 +337,8 @@ GET /processing/analysis-jobs/{jobId}
 POST /processing/reprocess/{documentId}
 ```
 
+**As-built (2026-07-29):** the processing view is exposed as **`GET /claims/{id}/processing`** (`CLAIM_READ`) via a `ProcessingQueryService`; there are no per-job GET endpoints and no manual `POST /reprocess/{documentId}`. Reprocessing is **not** a user-triggered endpoint — it fires automatically from `ProcessingOrchestrator.onCustomerResponse` when the customer answers an information request, re-queuing OCR + analysis over the **full** document set (not a single-document diff).
+
 ---
 
 # 10. OCR Integration
@@ -521,6 +527,8 @@ Inconsistent Fraud Scores
 
 # 15. Recovery Service
 
+**As-built (2026-07-29):** there is no separate `RecoveryService` / stuck-job timeout worker. Instead the fraud gate is designed to **settle on a terminal state** (each stage succeeds or exhausts its retries), so the pipeline never hangs waiting on a stuck job — the atomic gate still fires once both stages reach a terminal outcome. Also unbuilt as separate classes: `OcrJobService` / `AnalysisJobService` / `ProcessingStateService` / `ProcessingServiceImpl` — this logic lives in `ProcessingOrchestrator` + the workers. The read side is `ProcessingQueryService`.
+
 Responsibilities:
 
 ```text id="6f2x9v"
@@ -660,6 +668,8 @@ All events use:
 ```text id="30n5m2"
 Outbox Pattern
 ```
+
+**As-built (2026-07-29):** no outbox and no published events. Stage transitions are DB state changes on `ClaimProcessingState`; the "fraud queued" step is the atomic `tryQueueFraud` UPDATE that inserts a `fraud_job` row (see the module overview). Permissions in §21 (`PROCESSING_*`) do not exist — the only processing endpoint uses **`CLAIM_READ`**; tenant isolation is automatic via `@TenantId`.
 
 ---
 

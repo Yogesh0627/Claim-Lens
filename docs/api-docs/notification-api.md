@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Concrete divergences are flagged inline as **As-built** notes.
+
 # 07.12 Notification Management API
 
 ## Document Information
@@ -18,6 +20,12 @@
 # 1. Overview
 
 The Notification Management module provides communication capabilities across the ClaimLens platform.
+
+**As-built (2026-07-29):** the shipped notification API surface is just **two self-scoped endpoints**, both with **no `@PreAuthorize`** (a user always sees only their own notifications; identity comes from the JWT principal):
+> - **`GET /api/v1/notifications`** — list the caller's notifications (self-scoped).
+> - **`POST /api/v1/notifications/{id}/read`** — mark one of the caller's notifications read (self-scoped).
+>
+> There are **no notification templates, delivery-tracking, preferences, manual-send, or dashboard/analytics endpoints**, and no `notification-templates` / `notification-deliveries` resources. Email is sent directly via the Resend/SMTP provider abstraction, not through a template/delivery pipeline. Sections 6–10 below are not built.
 
 The module is responsible for:
 
@@ -109,6 +117,8 @@ CRITICAL
 | NOTIFICATION_TEMPLATE_MANAGE | Manage templates     |
 | NOTIFICATION_DELIVERY_VIEW   | View delivery logs   |
 
+**As-built (2026-07-29):** none of these permissions exist. The two shipped endpoints carry **no permission check at all** — they are self-scoped to the authenticated principal.
+
 ---
 
 # 5. Notification APIs
@@ -122,6 +132,8 @@ CRITICAL
 ```http id="tpc8zq"
 GET /api/v1/notifications
 ```
+
+**As-built (2026-07-29):** correct path, but **self-scoped with no `@PreAuthorize`** and **no query parameters** — it returns the caller's own notifications (not a paginated/filterable `PagedResponse`).
 
 ### Permissions
 
@@ -167,6 +179,8 @@ channel
 GET /api/v1/notifications/{notificationId}
 ```
 
+**As-built (2026-07-29):** not built — there is no single-notification GET.
+
 ### Success Response
 
 ```json id="3f29f7"
@@ -188,6 +202,8 @@ GET /api/v1/notifications/{notificationId}
 ```http id="t6ldrm"
 PATCH /api/v1/notifications/{notificationId}/read
 ```
+
+**As-built (2026-07-29):** the real verb/path is **`POST /api/v1/notifications/{id}/read`** (not `PATCH`), self-scoped with no `@PreAuthorize`.
 
 ### Success Response
 
@@ -213,6 +229,8 @@ NOTIFICATION_READ
 PATCH /api/v1/notifications/read-all
 ```
 
+**As-built (2026-07-29):** not built — mark notifications read one at a time via `POST /notifications/{id}/read`.
+
 ### Success Response
 
 ```json id="gkjq0k"
@@ -231,6 +249,8 @@ PATCH /api/v1/notifications/read-all
 DELETE /api/v1/notifications/{notificationId}
 ```
 
+**As-built (2026-07-29):** not built — notifications cannot be deleted via the API.
+
 ### Success Response
 
 ```http id="s9jvgs"
@@ -246,6 +266,8 @@ NOTIFICATION_DELETED
 ---
 
 # 6. Notification Template APIs
+
+**As-built (2026-07-29):** not built — no `notification-templates` resource exists.
 
 ---
 
@@ -345,6 +367,8 @@ templateCode
 
 # 7. Notification Delivery APIs
 
+**As-built (2026-07-29):** not built — no `notification-deliveries` resource or delivery-tracking API.
+
 ---
 
 ## Get Notification Deliveries
@@ -431,6 +455,8 @@ NOTIFICATION_DELIVERY_RETRIED
 
 # 8. Notification Preferences APIs
 
+**As-built (2026-07-29):** not built — no notification-preferences endpoints.
+
 ---
 
 ## Get User Preferences
@@ -489,6 +515,8 @@ NOTIFICATION_PREFERENCES_UPDATED
 
 # 9. Manual Notification APIs
 
+**As-built (2026-07-29):** not built — no manual send endpoint. Notifications are created only by internal event handlers.
+
 ---
 
 ## Send Notification
@@ -533,6 +561,8 @@ MANUAL_NOTIFICATION_SENT
 ---
 
 # 10. Notification Dashboard APIs
+
+**As-built (2026-07-29):** not built — no notification dashboard/statistics endpoints.
 
 ---
 

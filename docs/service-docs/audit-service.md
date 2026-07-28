@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; the authoritative behaviour is the service code. Where this diverges, the code wins ([`../architecture.md`](../architecture.md), [`../domain-model.md`](../domain-model.md), [`../audit-report.md`](../audit-report.md)); deltas flagged inline as **As-built** notes.
+
 # 09.10 Audit Service Design
 
 ## Document Information
@@ -30,6 +32,8 @@ Responsibilities:
 * Regulatory Support
 
 The Audit Module is the system of record for operational history.
+
+**As-built (2026-07-29):** the built module is a single **`AuditLog`** entity + `AuditService` with two methods: `record(...)` (insert) and `getClaimAudit(claimId)` (read). Recording is **not** event/outbox-driven (no outbox exists — see `service-design.md` §11): an **`@Auditable` AOP aspect** intercepts annotated service methods and calls `AuditService.record` **synchronously within the same business transaction** (`Propagation.REQUIRED`), so a rolled-back action leaves no audit row. `AuditEvent`, `ComplianceReport`, `AuditExportJob` and `AuditAttachment` were **dropped**, along with `SecurityAuditService` / `ComplianceService` / `AuditExportService`.
 
 ---
 
@@ -314,6 +318,8 @@ POST /audit/exports
 
 GET  /audit/exports/{jobId}
 ```
+
+**As-built (2026-07-29):** there is no `/audit/*` base path. The only audit read endpoint is **`GET /claims/{id}/audit`** (`AUDIT_READ`), which returns the `AuditLog` entries for that claim — tenant-scoped, so a claim from another tenant returns **404**. The security-event, compliance and export endpoints (and their workers, §14–§16) were not built.
 
 ---
 
@@ -670,6 +676,8 @@ AUDIT_EXPORT
 
 COMPLIANCE_VIEW
 ```
+
+**As-built (2026-07-29):** the only audit permission is **`AUDIT_READ`** (on `getClaimAudit`); there are no export/compliance permissions. Immutability (§13) holds in practice — `AuditService` only ever inserts. Tenant isolation is automatic via `@TenantId`.
 
 ---
 

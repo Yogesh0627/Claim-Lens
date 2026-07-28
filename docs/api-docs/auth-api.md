@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Concrete divergences are flagged inline as **As-built** notes.
+
 # 07.2 Authentication & Authorization API
 
 ## Document Information
@@ -59,6 +61,8 @@ Refresh Token Used
 New Access Token Issued
 ```
 
+**As-built (2026-07-29):** The complete shipped auth surface (base `/api/v1`) is: `POST /auth/login`, `POST /auth/google` (Google sign-in — not in the original design; disabled when client-id is blank), `POST /auth/refresh-token`, `POST /auth/logout`, `POST /auth/set-password` (used for both invitation acceptance and password reset — there is no `/auth/reset-password` or `/auth/validate-reset-token`), `POST /auth/forgot-password`, and `GET /auth/me`. All are `permitAll` except `/auth/me` (resolved from the principal). Change-password lives under the profile module: `POST /api/v1/profile/change-password` (`isAuthenticated`), NOT `/auth/change-password`. The `/auth/sessions*` and `/auth/permissions` endpoints were not built.
+
 ---
 
 # 3. Access Token Specification
@@ -89,6 +93,8 @@ Claims:
   ]
 }
 ```
+
+**As-built (2026-07-29):** The JWT carries `{sub, tid, rid}` — tenant id (`tid`) and role id (`rid`), and **roleId, NOT a permissions array**. Permissions are resolved server-side per request from `role_permission` (plus per-tenant `tenant_role_permission` overrides) and cached. HS256 with the algorithm pinned on parse; the secret has no default (fail-fast). Access-token TTL is a config value.
 
 ---
 
@@ -438,6 +444,8 @@ PASSWORD_RESET_REQUESTED
 
 # 11. Validate Reset Token API
 
+**As-built (2026-07-29):** Not built — there is no `/auth/validate-reset-token` endpoint.
+
 ## Endpoint
 
 ```http
@@ -477,6 +485,8 @@ POST /api/v1/auth/validate-reset-token
 ---
 
 # 12. Reset Password API
+
+**As-built (2026-07-29):** The reset flow completes via `POST /api/v1/auth/set-password` (single-use, SHA-256-hashed token; TTL 1h reset / 7d invite) — there is no `/auth/reset-password`. The enforced minimum password length is **6 characters** (known gap), not 8, and the composition rules below are not enforced.
 
 ## Endpoint
 
@@ -536,6 +546,8 @@ PASSWORD_RESET_COMPLETED
 ---
 
 # 13. Change Password API
+
+**As-built (2026-07-29):** The path is `POST /api/v1/profile/change-password` (`isAuthenticated`), NOT `/auth/change-password`. It does **not** revoke existing sessions (known gap documented in the audit report) — see the note under Security Actions.
 
 ## Endpoint
 
@@ -630,6 +642,8 @@ Required
 ---
 
 # 15. Active Sessions API
+
+**As-built (2026-07-29):** Not built — there is no session-listing or session-revoke API (sections 15–16), and no `/auth/permissions` endpoint (section 17). Refresh tokens are single-use and rotated on use, but there is no user-facing session management surface.
 
 ## Endpoint
 
@@ -743,6 +757,8 @@ Returns all permissions assigned to current user.
 ---
 
 # 19. Account Lockout Policy
+
+**As-built (2026-07-29):** No count-based account lockout was built. Brute-force protection is instead rate-limiting: an `auth` bucket of 20 requests/min per IP per URI (fail-open, keyed on leftmost `X-Forwarded-For` — a known spoofing gap).
 
 Failed Login Threshold:
 

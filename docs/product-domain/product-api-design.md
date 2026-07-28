@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Deltas flagged inline as **As-built** notes.
+
 # 14.3 API Design – Insurance Product Domain
 
 Status: Approved
@@ -24,6 +26,8 @@ The APIs provide the foundation for:
 * Policy Version Management
 * Claim Product Selection
 * Future Policy Intelligence Integration
+
+**As-built (2026-07-29):** Actual endpoints (base `/api/v1`, see ENDPOINTS.md): `POST /products`, `GET /products/{id}`, `PUT /products/{id}`, `GET /products`, `POST /products/{id}/versions`, `GET /products/{id}/versions`, `POST /products/{id}/versions/{vId}/activate`, `POST /products/{id}/versions/{vId}/documents`, `GET .../documents`, `GET .../documents/{docId}/download`, plus the RAG knowledge endpoints `GET/POST /products/{id}/versions/{vId}/knowledge`. The retire-product, retire-version, remove-document, `active-version`, `claim-types/{id}`, and `validate` endpoints below were **not built** (version activation implicitly expires the prior active version; claim/version resolution happens through the policy). Two coarse permissions guard everything: `PRODUCT_READ` and `PRODUCT_WRITE` (knowledge endpoints use `COVERAGE_READ`/`COVERAGE_WRITE`).
 
 ---
 
@@ -363,6 +367,8 @@ PRODUCT_VERSION_RETIRE
 
 ## Attach Product Document
 
+**As-built (2026-07-29):** `POST /products/{id}/versions/{vId}/documents` is a **multipart upload** (the file itself), not a reference to a pre-existing `documentId`. Retrieval is `GET .../documents`; each doc is fetched via `GET .../documents/{docId}/download`. There is no remove-document endpoint.
+
 Associates a document with a product version.
 
 ### Endpoint
@@ -438,6 +444,8 @@ PRODUCT_DOCUMENT_REMOVE
 ---
 
 # Claim Integration APIs
+
+**As-built (2026-07-29):** None of these three endpoints (`active-version`, `claim-types/{id}`, `validate`) shipped. Claim creation pins the product version through the selected **policy** rather than resolving the active version via a product API; product pickers use the paginated policy/product list endpoints.
 
 These APIs support claim creation workflows.
 
@@ -589,6 +597,8 @@ PRODUCT_DOCUMENT_ATTACH
 
 PRODUCT_DOCUMENT_REMOVE
 ```
+
+**As-built (2026-07-29):** These fine-grained codes were not created. The whole product surface is guarded by just `PRODUCT_READ` (reads) and `PRODUCT_WRITE` (create/update/version/activate/attach). The RAG knowledge endpoints on a version use `COVERAGE_READ`/`COVERAGE_WRITE`.
 
 ---
 

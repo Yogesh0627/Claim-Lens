@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Concrete divergences are flagged inline as **As-built** notes.
+
 # 07.11 Fraud Detection & Risk Assessment API
 
 ## Document Information
@@ -51,6 +53,8 @@ fraud_score
 fraud_alert
 fraud_rule_execution
 ```
+
+**As-built (2026-07-29):** the built fraud entities are `FraudJob`, `FraudRule`, `FraudRuleset`, and `FraudScore`. There is **no `fraud_alert` / `FraudCase` entity** (dropped, never built) — so the alert APIs below do not exist. Rule-execution explainability is persisted with the fraud score (via `fraud_rule_execution` detail), not exposed as a standalone entity/endpoint. The fraud-rule *configuration* lives in the `ruleset` module under **`/rulesets/fraud`** (`RULESET_*` perms), not `fraud_policy`.
 
 Related Entities:
 
@@ -121,6 +125,8 @@ HIGH
 CRITICAL
 ```
 
+**As-built (2026-07-29):** the shipped `FraudEngine` maps the weighted 0–100 score to **three** bands only — `LOW`, `MEDIUM`, `HIGH`. There is **no `CRITICAL`** band.
+
 ---
 
 ## Default Thresholds
@@ -134,6 +140,8 @@ CRITICAL
 
 Actual thresholds are configurable through Fraud Policies.
 
+**As-built (2026-07-29):** thresholds are carried by the active **fraud ruleset** (`/rulesets/fraud`), not a `fraud_policy`, and resolve to the three-band `LOW/MEDIUM/HIGH` scale above (no `CRITICAL` row).
+
 ---
 
 # 5. Permission Matrix
@@ -146,9 +154,13 @@ Actual thresholds are configurable through Fraud Policies.
 | FRAUD_POLICY_VIEW    | View fraud policy        |
 | FRAUD_DASHBOARD_VIEW | View fraud dashboard     |
 
+**As-built (2026-07-29):** none of these five permissions exist. The only fraud permission is **`FRAUD_READ`**. Fraud-ruleset config uses `RULESET_READ`/`RULESET_WRITE`. There is no review/override/dashboard permission because those features were not built.
+
 ---
 
 # 6. Fraud Score APIs
+
+**As-built (2026-07-29):** the `/fraud/**` surface described in sections 6–13 was almost entirely **not built** in this form. The actual fraud API surface is just one endpoint: **`GET /api/v1/fraud/evaluation/dataset` (`FRAUD_READ`)**, which returns the labelled fraud-evaluation dataset. A claim's computed fraud score and its per-rule execution breakdown are surfaced through the processing view — **`GET /api/v1/claims/{id}/processing` (`CLAIM_READ`)** (see the Processing & OCR API doc) — not via the `/fraud/claims/{claimId}/*` paths below. Fraud is evaluated automatically by the processing orchestrator's atomic fraud gate; there is no manual trigger, review, override, alert, or dashboard endpoint.
 
 ---
 
@@ -159,6 +171,8 @@ Actual thresholds are configurable through Fraud Policies.
 ```http
 GET /api/v1/fraud/claims/{claimId}/score
 ```
+
+**As-built (2026-07-29):** not built at this path. The fraud score for a claim is read from `GET /api/v1/claims/{id}/processing` (`CLAIM_READ`).
 
 ### Permissions
 
@@ -207,6 +221,8 @@ GET /api/v1/fraud/claims/{claimId}/score-history
 ---
 
 # 7. Fraud Alert APIs
+
+**As-built (2026-07-29):** not built — there is no `fraud_alert` entity or alert lifecycle. Rule matches are captured inside the fraud score's rule-execution breakdown instead.
 
 ---
 
@@ -377,6 +393,8 @@ GET /api/v1/fraud/rule-executions/{executionId}
 ---
 
 # 9. Fraud Evaluation APIs
+
+**As-built (2026-07-29):** not built. Fraud evaluation is not manually triggerable — it runs automatically at the processing pipeline's atomic fraud gate once all OCR + analysis jobs settle. Sections 9–13 (manual evaluate, evaluation-status, reviews, override, dashboard, investigation-summary) have no corresponding endpoints.
 
 ---
 

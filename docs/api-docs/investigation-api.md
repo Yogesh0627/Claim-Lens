@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Concrete divergences are flagged inline as **As-built** notes.
+
 # 07.9 Investigation Management API
 
 ## Document Information
@@ -18,6 +20,12 @@
 # 1. Overview
 
 The Investigation Management module manages the operational investigation process after a claim has been assigned to an investigator.
+
+**As-built (2026-07-29):** the module shipped in a drastically reduced form. There is **no standalone `investigation` resource** — no `/investigations` endpoints, no investigation lifecycle/status, no tasks, evidence links, reports, timeline, summary, or closure APIs. The `InvestigationFinding`, `InvestigationEvidence`, investigation-task, and investigation-report concepts were **dropped (never built)**. What exists is a single **`InvestigationNote`** entity attached directly to a claim, exposed as two endpoints:
+> - **`POST /api/v1/claims/{id}/investigation-notes`** (`CLAIM_INVESTIGATE`)
+> - **`GET /api/v1/claims/{id}/investigation-notes`** (`CLAIM_READ`)
+>
+> Investigation lifecycle is driven by the **claim status enum** (e.g. `UNDER_INVESTIGATION`, `WAITING_FOR_CUSTOMER`) on the claim itself, not by a separate investigation status machine. Sections 5–13 below describe endpoints that do not exist.
 
 This module enables investigators to:
 
@@ -45,6 +53,8 @@ investigation_note
 investigation_task
 investigation_report
 ```
+
+**As-built (2026-07-29):** the only managed entity built is **`investigation_note`** (`InvestigationNote`). `investigation`, `investigation_task`, and `investigation_report` were never created.
 
 Related Entities:
 
@@ -108,9 +118,13 @@ CLOSED
 | INVESTIGATION_TASK_MANAGE   | Manage tasks          |
 | INVESTIGATION_REPORT_CREATE | Create reports        |
 
+**As-built (2026-07-29):** none of these `INVESTIGATION_*` permissions exist. The two shipped note endpoints are guarded by **`CLAIM_INVESTIGATE`** (create note) and **`CLAIM_READ`** (list notes).
+
 ---
 
 # 5. Investigation APIs
+
+**As-built (2026-07-29):** not built. There is no `/investigations` resource (create/get/update/list), no status APIs (section 6), no tasks (section 8), no evidence (section 9), no reports (section 10), no timeline (section 11), no closure (section 12), and no summary (section 13). The only surviving surface is investigation **notes** (section 7), re-pathed under the claim — see the note below on the correct endpoints.
 
 ---
 
@@ -319,6 +333,8 @@ GET /api/v1/investigations/{investigationId}/allowed-statuses
 POST /api/v1/investigations/{investigationId}/notes
 ```
 
+**As-built (2026-07-29):** the real endpoint is **`POST /api/v1/claims/{id}/investigation-notes`** (`CLAIM_INVESTIGATE`) — notes hang off the claim, not an investigation id.
+
 ### Request Body
 
 ```json
@@ -350,6 +366,8 @@ INVESTIGATION_NOTE_CREATED
 ```http
 GET /api/v1/investigations/{investigationId}/notes
 ```
+
+**As-built (2026-07-29):** the real endpoint is **`GET /api/v1/claims/{id}/investigation-notes`** (`CLAIM_READ`). Note **update** (`PUT .../notes/{noteId}`) was not built — notes are append-only.
 
 ### Success Response
 

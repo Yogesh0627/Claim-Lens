@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Deltas flagged inline as **As-built** notes.
+
 # 15.3 API Design – Policy Intelligence Domain
 
 Status: Approved
@@ -22,6 +24,8 @@ This document defines APIs for:
 
 These APIs expose the RAG capabilities of ClaimLens.
 
+**As-built (2026-07-29):** The RAG feature shipped as the `coverage` module, not `policy-intelligence`. The wide surface below (chat sessions, question history, scenario analysis, investigation copilot, AI audit interactions, admin embedding endpoints) was **not built**. The actual endpoints are: `POST /coverage/ask`, `GET /coverage/products`, `GET/POST /products/{id}/versions/{vId}/knowledge`, plus customer-portal `POST /portal/coverage/ask` (see ENDPOINTS.md and `../audit-report.md`). Answers carry citations. RAG runs on Gemini embeddings + chat when `AI_ENABLED=true`, else an OFFLINE stub (extractive answer, 256-dim hash embeddings); vector search uses pgvector/HNSW when `PGVECTOR_ENABLED=true`, else in-Java cosine.
+
 ---
 
 # API Standards
@@ -31,6 +35,8 @@ Base Path
 ```http
 /api/v1/policy-intelligence
 ```
+
+**As-built (2026-07-29):** No `/policy-intelligence` base path exists. Ask/list live under `/coverage` and knowledge ingestion under `/products/{id}/versions/{vId}/knowledge` (base `/api/v1`).
 
 Authentication
 
@@ -155,6 +161,8 @@ GET /api/v1/policy-intelligence/products/{productVersionId}/statistics
 
 # Chat Session APIs
 
+**As-built (2026-07-29):** Not built. There is no chat-session/message model; `POST /coverage/ask` is stateless (single question in, cited answer out). Entities shipped are only `PolicyChunk`, `CoverageAnswer`, `CoverageCitation`.
+
 ---
 
 ## Create Chat Session
@@ -243,6 +251,8 @@ GET /api/v1/policy-intelligence/sessions/{sessionId}/messages
 
 ## Ask Policy Question
 
+**As-built (2026-07-29):** Realized as `POST /coverage/ask` (and portal `POST /portal/coverage/ask`). Request selects a product/version rather than a `sessionId`; the response is a grounded answer plus citations. Question history / details endpoints were not built.
+
 General-purpose policy Q&A.
 
 ### Endpoint
@@ -313,6 +323,8 @@ GET /api/v1/policy-intelligence/questions/{questionId}
 ---
 
 # Coverage Validation APIs
+
+**As-built (2026-07-29):** No dedicated coverage-validation, scenario, or investigation-copilot endpoints shipped — all such questions go through the single `POST /coverage/ask` endpoint.
 
 Specialized policy coverage endpoint.
 
@@ -601,6 +613,8 @@ POLICY_AI_AUDIT_VIEW
 
 POLICY_AI_ADMIN
 ```
+
+**As-built (2026-07-29):** The `POLICY_AI_*` permissions were never created. Actual permission codes are `COVERAGE_READ` (knowledge read + ask) and `COVERAGE_WRITE` (knowledge ingest). Known authz gap: `POST /coverage/ask` and `GET /coverage/products` are guarded by `isAuthenticated() && !PORTAL_CLAIM_READ` (a deny-list) rather than `COVERAGE_READ` — see `../audit-report.md` (M7).
 
 ---
 

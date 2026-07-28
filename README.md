@@ -252,7 +252,7 @@ Claim-Lens/
 │   │   ├── coverage/    🤖 RAG (embeddings, chat, pgvector)
 │   │   ├── portal/      🙋 customer self-service
 │   │   └── platform/    📊 cross-tenant console
-│   └── src/main/resources/db/migration/   🗃️ Flyway (V1…V26)
+│   └── src/main/resources/db/migration/   🗃️ Flyway (V1…V32)
 ├── frontend/           🎨  Next.js app — staff workspace, portal, platform, landing, blog, roadmap
 ├── analysis-service/   🖼️  Python/FastAPI image-fraud service (OpenCV)
 ├── ocr-service/        🔎  Python/FastAPI OCR service (Tesseract/Vision) — alt to in-JVM Vision
@@ -266,7 +266,7 @@ Claim-Lens/
 ## 🧪 Testing
 
 ```bash
-cd backend && ./mvnw test        # 92 integration & unit tests
+cd backend && ./mvnw test        # 106 integration & unit tests (3 skipped)
 ```
 
 The suite runs against real **PostgreSQL** (not H2 — the app uses JSONB, partial indexes and `TIMESTAMPTZ`), with **Flyway** re-validating every migration on each run. Highlights:
@@ -288,7 +288,7 @@ A **240-check cross-role sweep** additionally verifies every role can do exactly
 
 What's shipped and what's next lives on the in-app **`/roadmap`** page. In short:
 
-- ✅ **Shipped:** multi-tenancy, full claim lifecycle, Google Vision OCR, image forensics, explainable fraud engine, AI policy Q&A, customer portal, platform console, document versioning, email.
+- ✅ **Shipped:** multi-tenancy, full claim lifecycle, Google Vision OCR, image forensics, explainable fraud engine, AI policy Q&A, customer portal, platform console, document versioning, email, paginated list APIs, a security-audit pass.
 - 🔜 **Next:** cloud hardening (rate limiting, metrics, structured logs), pgvector at scale, more claim types (health/property), real-time notifications, outbox event worker, claimant mobile app, richer analytics/export.
 
 ---

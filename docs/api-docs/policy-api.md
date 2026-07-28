@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Concrete divergences are flagged inline as **As-built** notes.
+
 # 07.5 Policy Engine API
 
 ## Document Information
@@ -20,6 +22,16 @@
 The Policy Engine is the configuration backbone of ClaimLens.
 
 Rather than hardcoding business rules into application code, operational behavior is controlled through configurable policies stored in the database.
+
+**As-built (2026-07-29): critical naming correction.** This document's "Policy Engine" describes *configuration rules* under `/api/v1/policies/...`, but in the shipped system **`/policies` is a different resource entirely** — it is the **insurance-contract policy** (the customer's cover), module `policy`, guarded by `POLICY_{READ,WRITE}` (`POST /policies`, `GET /policies/{id}`, `GET /policies?page&size`, `GET /policies/options`, `POST /policies/{id}/cancel`). See the Insurance Policy API doc for that.
+>
+> The **fraud-configuration** portion of this doc (fraud policies + fraud rules, sections 8–9) shipped as the **fraud ruleset**, in module `ruleset`, at **`/api/v1/rulesets/fraud`** — **not** under `/policies` — guarded by `RULESET_{READ,WRITE}`:
+> - `POST /rulesets/fraud` (`RULESET_WRITE`) — create a ruleset (rules embedded, no separate `fraud_rule` endpoints).
+> - `POST /rulesets/fraud/{id}/activate` (`RULESET_WRITE`).
+> - `GET /rulesets/fraud/{id}` (`RULESET_READ`) · `GET /rulesets/fraud` (`RULESET_READ`).
+> - `GET /rulesets/fraud/rule-catalog` (`RULESET_READ`) — the catalog of available rule codes.
+>
+> The remaining config surfaces in this doc — claim-types, document-types, required-document policies, assignment policies, SLA policies, analysis strategies, and the generic activate/deactivate endpoints — were **not built as runtime APIs**; those behaviors are seeded/handled internally. Sections 4–7 and 10–12 below therefore have no corresponding endpoints. The fraud-evaluation *dataset* is exposed read-only at `GET /fraud/evaluation/dataset` (`FRAUD_READ`).
 
 The Policy Engine controls:
 
@@ -64,9 +76,13 @@ analysis_strategy
 | FRAUD_RULE_MANAGE | Manage fraud rules  |
 | SLA_POLICY_MANAGE | Manage SLA policies |
 
+**As-built (2026-07-29):** these permission codes do not exist as written. Fraud-config authorization uses **`RULESET_READ` / `RULESET_WRITE`**. The `POLICY_READ` / `POLICY_WRITE` codes that *do* exist govern the unrelated **insurance-contract policy** resource, not this config engine. There are no `FRAUD_RULE_MANAGE` or `SLA_POLICY_MANAGE` permissions.
+
 ---
 
 # 4. Claim Type APIs
+
+**As-built (2026-07-29):** not built as runtime CRUD endpoints. Claim types (`ClaimType`) are reference data; V1 supports `MOTOR` only. No `/policies/claim-types` endpoints exist.
 
 Claim Types define categories of claims supported by the platform.
 
@@ -160,6 +176,8 @@ GET /api/v1/policies/claim-types
 
 # 5. Document Type APIs
 
+**As-built (2026-07-29):** not built as runtime endpoints — document typing is handled internally, not via `/policies/document-types`.
+
 Document Types represent uploadable document categories.
 
 Examples:
@@ -234,6 +252,8 @@ status
 
 # 6. Required Document Policy APIs
 
+**As-built (2026-07-29):** not built as runtime endpoints — no `/policies/required-document-policies`.
+
 Controls which documents are mandatory for a claim type.
 
 Example:
@@ -305,6 +325,8 @@ GET /api/v1/policies/claim-types/{claimTypeId}/required-documents
 ---
 
 # 7. Assignment Policy APIs
+
+**As-built (2026-07-29):** not built as `/policies/assignment-policies` config endpoints. Assignment is done through the claim assignment APIs (`POST /claims/{id}/assign`, `/auto-assign`, `/reassign`, all `CLAIM_ASSIGN`) rather than a configurable assignment-policy resource.
 
 Assignment policies control investigator allocation.
 
@@ -382,6 +404,8 @@ ASSIGNMENT_POLICY_UPDATED
 
 # 8. Fraud Policy APIs
 
+**As-built (2026-07-29):** shipped as the **fraud ruleset**, not a `fraud_policy` under `/policies`. Create/read/list/activate a ruleset via **`/api/v1/rulesets/fraud`** (`RULESET_WRITE` for create + `POST /rulesets/fraud/{id}/activate`; `RULESET_READ` for `GET /rulesets/fraud` and `GET /rulesets/fraud/{id}`). Thresholds map to the `LOW/MEDIUM/HIGH` bands (no `CRITICAL`).
+
 Fraud policies determine fraud scoring behavior.
 
 Fraud policy acts as a container for fraud rules.
@@ -450,6 +474,8 @@ FRAUD_POLICY_UPDATED
 ---
 
 # 9. Fraud Rule APIs
+
+**As-built (2026-07-29):** there are **no standalone `/policies/fraud-rules` endpoints**. Rules (`FraudRule`) are embedded in a `FraudRuleset` and created/updated as part of the ruleset payload at `/rulesets/fraud` (`RULESET_WRITE`). The catalog of available rule codes is read via **`GET /rulesets/fraud/rule-catalog`** (`RULESET_READ`). There are no separate create/update/enable/disable rule endpoints.
 
 Fraud Rules are executed by the Fraud Engine.
 
@@ -585,6 +611,8 @@ claimTypeId
 
 # 10. SLA Policy APIs
 
+**As-built (2026-07-29):** not built — no `/policies/sla-policies` endpoints.
+
 SLA policies define investigation deadlines.
 
 Example:
@@ -658,6 +686,8 @@ GET /api/v1/policies/sla-policies
 ---
 
 # 11. Analysis Strategy APIs
+
+**As-built (2026-07-29):** not built as config endpoints. Which checks run (per-document OCR + per-image analysis) is fixed by the processing pipeline, not a `/policies/analysis-strategies` resource.
 
 Analysis Strategies determine which automated checks execute during claim processing.
 
@@ -742,6 +772,8 @@ enabled
 ---
 
 # 12. Policy Activation APIs
+
+**As-built (2026-07-29):** the generic `/policies/{policyType}/{policyId}/activate|deactivate` endpoints were not built. The only activation that ships is ruleset activation: **`POST /rulesets/fraud/{id}/activate`** (`RULESET_WRITE`), which makes one fraud ruleset the active one.
 
 Policies support versioning and activation.
 

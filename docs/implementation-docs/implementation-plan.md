@@ -1,3 +1,7 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Deltas flagged inline as **As-built** notes.
+
+**As-built (2026-07-29):** This blueprint is **fully executed** — ClaimLens is built and feature-complete. Backend is Java 21 / Spring Boot 4 / Spring Security 7 / JPA-Hibernate 7 / Flyway (**V1–V32**) / PostgreSQL 17, with **106 backend tests green (3 skipped), BUILD SUCCESS** against a real `claimlens_test` database. All phases below shipped, plus later additions not in this plan: **customer portal, RAG/coverage AI layer, full org hierarchy (region/branch/department/designation), pagination on list endpoints, and a security-audit hardening pass** (see `../audit-report.md`). Base package is `com.niyotechnologies.claimlens`. Treat individual phase/sprint items below as **done**.
+
 # 10.1 Implementation Blueprint
 
 **Project:** ClaimLens
@@ -63,6 +67,8 @@ Base Package
 com.Niyo.claimlens
 ```
 
+**As-built (2026-07-29):** The shipped base package is **`com.niyotechnologies.claimlens`** (all lowercase, `niyotechnologies`).
+
 ## Core Packages
 
 ```text
@@ -92,6 +98,8 @@ notification
 analytics
 audit
 ```
+
+**As-built (2026-07-29):** The shipped module set is larger: `analytics, assignment, audit, auth, claim, common, config, coverage, customer, document, events, fraud, integration, investigation, notification, organization, outbox, platform, policy, portal, processing, product, role, ruleset, scheduler, security, tenancy, user` — notably adding `auth`, `customer`, `product`, `coverage` (RAG), `portal` (customer portal), `platform` (platform-admin), `role`, and `ruleset` (fraud config, path `/rulesets/fraud`).
 
 ## Standard Module Structure
 
@@ -134,6 +142,8 @@ analytics
 audit
 ```
 
+**As-built (2026-07-29):** Flyway shipped **V1–V32** (see the corrected list below), not the V1–V13 proposed here.
+
 ## Migration Naming Convention
 
 ```text
@@ -163,6 +173,8 @@ V12__analytics_tables.sql
 
 V13__audit_tables.sql
 ```
+
+**As-built (2026-07-29):** Actual migrations (V1–V32): V1 initial_schema, V2 organization_tables, V3 access_control_tables, V4 user_tables, V5 permission_seed, V6 auth_tables, V7 customer_tables, V8 reference_data_tables, V9 product_tables, V10 insurance_policy_tables, V11 claim_tables, V12 document_tables, V13 claim_assignment_tables, V14 processing_tables, V15 fraud_ruleset_tables, V16 investigation_tables, V17 audit_tables, V18 notification_analytics_tables, V19 user_read_permission, V20 ocr_result_tables, V21 analysis_result_tables, V22 policy_ai_tables, V23 platform_admin, V24 user_write_permission, V25 document_version_tables, V26 customer_portal, V27 user_invitation_tables, V28 tenant_archived_status, V29 product_document_tables, V30 tenant_role_permission, V31 app_user_region, V32 claim_fraud_confirmed.
 
 ## Rules
 
@@ -366,6 +378,8 @@ RTK Query
 React Hook Form
 ```
 
+**As-built (2026-07-29):** Frontend shipped on **Next.js 16 (App Router) + React 19 + TypeScript**, styled with **Tailwind CSS 4 + shadcn/ui (Radix)** — not Material UI. State is **Redux Toolkit (auth only)**; data fetching is **axios** (not RTK Query); forms use **react-hook-form (no zod)**; dates via dayjs.
+
 ---
 
 # 10. API Standards
@@ -477,6 +491,8 @@ Password Encryption
 Secure Secrets Management
 ```
 
+**As-built (2026-07-29):** Tenant is resolved from the **JWT** (`tid` claim) via Hibernate `@TenantId` — there is no `{companyId}` path variable anywhere. Authorization is server-side per request from role/permission tables (the JWT carries `roleId`, not permissions). For reference, the shipped `ClaimStatus` enum has **11 values including `REOPENED`** (its transition is not yet wired) and **no `CANCELLED`**.
+
 ---
 
 # 14. Testing Strategy
@@ -497,6 +513,8 @@ Framework
 ```text
 Testcontainers
 ```
+
+**As-built (2026-07-29):** Integration/API tests run against a **real PostgreSQL `claimlens_test` database** — **not** Testcontainers and **not** H2. The suite is **106 backend tests (3 skipped), BUILD SUCCESS**.
 
 ## API Tests
 
@@ -544,6 +562,8 @@ Grafana
 ---
 
 # 16. Module Implementation Order
+
+**As-built (2026-07-29):** All phases below are **complete**. Beyond this ordering, the delivered system also added an `auth` module (JWT + refresh/invite/reset tokens, Google sign-in), `customer` + `product` modules, a `coverage` RAG layer, a `portal` customer-portal, a `platform` platform-admin surface, `role`/`ruleset` modules, and pagination — followed by a security-audit hardening pass.
 
 ## Phase 1 Foundation
 

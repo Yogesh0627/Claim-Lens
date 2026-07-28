@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; the authoritative behaviour is the code. Where this diverges, the code wins ([`../architecture.md`](../architecture.md), [`../domain-model.md`](../domain-model.md)); deltas flagged inline as **As-built** notes.
+
 # 08.2 Claim Events
 
 ## Document Information
@@ -35,6 +37,8 @@ All events follow the standard envelope defined in:
 ```text
 08.1-event-standards.md
 ```
+
+> **As-built (2026-07-29):** None of the named events below are **published** — there is no event bus and no outbox (see `event-design.md`). Claim state changes happen synchronously inside `ClaimServiceImpl`, which does three things directly in-transaction: writes a `claim_status_history` row (`recordHistory`), fires an `@Auditable` audit-log entry, and — for the moments that touch a person — calls `NotificationService` to write an in-app `notification` row + best-effort email. The **only claim moments that produce a user-facing notification** are: `CLAIM_SUBMITTED`, `CLAIM_ASSIGNED` (also reused for reassign), `CLAIM_INFO_REQUESTED`, `CLAIM_CUSTOMER_RESPONDED`, `CLAIM_APPROVED`, `CLAIM_REJECTED`. No downstream module "consumes" claim events; the consumer lists below are aspirational. There are no `CLAIM_UPDATED`, `CLAIM_COMMENT_ADDED`, or `CLAIM_TAG_*` features in the build.
 
 ---
 
@@ -206,6 +210,8 @@ APPROVED
 REJECTED
 CLOSED
 ```
+
+> **As-built (2026-07-29):** These are not the real status names. The `ClaimStatus` enum has **11 values**: `DRAFT, SUBMITTED, AWAITING_ANALYSIS, AWAITING_ASSIGNMENT, AWAITING_ACCEPTANCE, UNDER_INVESTIGATION, WAITING_FOR_CUSTOMER, APPROVED, REJECTED, CLOSED, REOPENED`. `UNDER_REVIEW` / `WAITING_FOR_INFORMATION` / `INVESTIGATION_REQUIRED` do not exist. `REOPENED` exists in the enum but its transition is **not wired** (no reopen flow). Status transitions are recorded as `claim_status_history` rows, not as a `CLAIM_STATUS_CHANGED` event.
 
 ---
 
@@ -605,6 +611,8 @@ Only terminal statuses allowed:
 APPROVED
 REJECTED
 ```
+
+> **As-built (2026-07-29):** `ClaimStatus.isTerminal()` = `APPROVED | REJECTED | CLOSED`. There is no emitted `CLAIM_CLOSED` event; a decision (`decide()`) moves the claim to `APPROVED`/`REJECTED` and notifies the customer directly.
 
 ---
 

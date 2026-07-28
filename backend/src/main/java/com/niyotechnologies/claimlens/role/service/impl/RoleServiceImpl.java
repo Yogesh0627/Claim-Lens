@@ -7,6 +7,7 @@ import com.niyotechnologies.claimlens.role.enums.RoleStatus;
 import com.niyotechnologies.claimlens.role.repository.RoleRepository;
 import com.niyotechnologies.claimlens.role.service.RoleService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -18,6 +19,10 @@ public class RoleServiceImpl implements RoleService {
     private final RoleRepository roleRepository;
 
     @Override
+    // The role table is global (not tenant-scoped). Without a guard, any authenticated principal —
+    // including a portal CUSTOMER — could enumerate every role code/name. Gate on USER_READ (staff
+    // user-administration), which the only legitimate caller (the user create/edit form) already holds.
+    @PreAuthorize("hasAuthority('USER_READ')")
     public List<RoleResponse> getAllRoles() {
         return roleRepository
                 .findAllByStatusAndIsDeletedFalse(RoleStatus.ACTIVE)
@@ -27,6 +32,7 @@ public class RoleServiceImpl implements RoleService {
     }
 
     @Override
+    @PreAuthorize("hasAuthority('USER_READ')")
     public RoleResponse getRole(Long roleId) {
         Role role = getRoleOrThrow(roleId);
 

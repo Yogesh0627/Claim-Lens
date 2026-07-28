@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; the authoritative behaviour is the service code. Where this diverges, the code wins ([`../architecture.md`](../architecture.md), [`../domain-model.md`](../domain-model.md), [`../audit-report.md`](../audit-report.md)); deltas flagged inline as **As-built** notes.
+
 # 09.4 Assignment Service Design
 
 ## Document Information
@@ -30,6 +32,8 @@ Responsibilities:
 * Escalation Handling
 
 The Assignment Module acts as the bridge between Fraud Detection and Investigation.
+
+**As-built (2026-07-29):** this module is far thinner than described. What exists is one entity (`ClaimAssignment`), its repository, an `AssignmentStatus` enum, and an **`AssignmentEngine`** — there is **no** `AssignmentController`, `AssignmentService`, queue, workload service, SLA/escalation service, or scheduled workers, and **no** `AssignmentQueue` / `AssignmentHistory` entities (all dropped). Assignment is driven **from the claim module**: `POST /claims/{id}/assign|auto-assign|reassign` (all `CLAIM_ASSIGN`). Assigning moves the claim straight to **UNDER_INVESTIGATION** — there is no accept / reject / complete step. The engine's V1 strategy is **least-loaded** (fewest active `ASSIGNED`), scoped to the current tenant via `@TenantId`; region / branch / availability filters are deferred.
 
 ---
 
@@ -281,6 +285,8 @@ Sort By Workload
 Assign Lowest Load Investigator
 ```
 
+**As-built (2026-07-29):** `AssignmentEngine.pickInvestigator()` selects the **least-loaded** ACTIVE user holding the `INVESTIGATOR` role in the current tenant — measured by count of `ASSIGNED` assignments — and throws `NO_ELIGIBLE_INVESTIGATOR` if none. The branch/region filters shown are **not** applied in V1. Manual `assign` additionally guards that the chosen user actually has `CLAIM_INVESTIGATE` (`NOT_AN_INVESTIGATOR` otherwise).
+
 ---
 
 ## Future Algorithms
@@ -321,6 +327,8 @@ getInvestigatorWorkloads();
 ---
 
 # 9. Assignment Queue Management
+
+**As-built (2026-07-29):** none of §9 (queue), §15 (SLA escalation) or §16 (scheduled queue/escalation workers) was built — there is no assignment queue, no SLA monitoring, and no escalation. Assignment happens inline in the claim transaction. §14 event publishing / outbox is also not built (see `service-design.md` §11).
 
 ## Queue Entry
 
@@ -682,6 +690,8 @@ ASSIGNMENT_REASSIGN
 
 ASSIGNMENT_COMPLETE
 ```
+
+**As-built (2026-07-29):** there are no `ASSIGNMENT_*` permissions. Assignment actions are guarded by **`CLAIM_ASSIGN`** on the claim-service impl methods; tenant isolation is automatic via `@TenantId`.
 
 ---
 

@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Concrete divergences are flagged inline as **As-built** notes.
+
 # 07.7 Document Management API
 
 ## Document Information
@@ -150,9 +152,18 @@ Insurance Policy V1
 | DOCUMENT_DELETE   | Delete documents   |
 | DOCUMENT_DOWNLOAD | Download documents |
 
+**As-built (2026-07-29):** Documents are managed as claim sub-resources, not a standalone `/documents` module, and are gated by the claim permissions `CLAIM_WRITE`/`CLAIM_READ` (the `DOCUMENT_*` codes do not exist). The full shipped surface (base `/api/v1`):
+> - `POST /claims/{id}/documents` (`CLAIM_WRITE`, **multipart** — direct upload, no presigned URL) · `GET /claims/{id}/documents` (`CLAIM_READ`)
+> - `POST /claims/{id}/documents/{docId}/versions` (`CLAIM_WRITE`) · `GET /claims/{id}/documents/{docId}/versions` (`CLAIM_READ`)
+> - `GET /claims/{id}/documents/{docId}/download` (`CLAIM_READ`) · `GET …/versions/{vId}/download` (`CLAIM_READ`)
+>
+> Not built: `POST /documents/upload-url`, `POST /documents/complete-upload`, `GET /documents/{id}`, `GET /documents/search`, `PATCH …/metadata`, document-validation / missing-documents, `…/processing-status`, `…/reprocess`, archive/restore, and `DELETE /documents/{id}`. (Claim-level processing status is read via `GET /claims/{id}/processing`.)
+
 ---
 
 # 5. Upload Flow
+
+**As-built (2026-07-29):** There is NO presigned-URL / generate-upload-URL / complete-upload flow. A document is uploaded in a single **multipart** request straight to the backend: `POST /api/v1/claims/{id}/documents` (`CLAIM_WRITE`). The backend stores the bytes via the configured `STORAGE_PROVIDER` (S3/Cloudflare R2 in prod, local filesystem by default — not "all files in S3"), records metadata, and queues OCR + analysis jobs. Enforced upload limits: 10 MB per file / 15 MB per request (oversize → 413). No virus/malware scanning is performed.
 
 ## Upload Architecture
 
@@ -479,6 +490,8 @@ GET /api/v1/documents/{documentId}/versions/{versionId}
 ---
 
 # 9. Download APIs
+
+**As-built (2026-07-29):** Downloads are streamed through the backend, not via presigned S3 URLs — there is no `…/download-url` endpoint. Use `GET /api/v1/claims/{id}/documents/{docId}/download` and `GET …/documents/{docId}/versions/{vId}/download` (both `CLAIM_READ`). Responses are hardened by `SafeDownloads`: image/pdf served inline, everything else forced to `application/octet-stream` + `Content-Disposition: attachment` (stored-XSS fix).
 
 ---
 

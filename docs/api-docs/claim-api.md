@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Concrete divergences are flagged inline as **As-built** notes.
+
 # 07.6 Claim Management API
 
 ## Document Information
@@ -84,6 +86,8 @@ claim_processing_state
 | CLAIM_TAG_MANAGE     | Manage tags         |
 | CLAIM_EXPORT         | Export claims       |
 
+**As-built (2026-07-29):** The real claim permission codes are `CLAIM_READ`, `CLAIM_WRITE`, `CLAIM_SUBMIT`, `CLAIM_ASSIGN`, `CLAIM_DECIDE`, and `CLAIM_INVESTIGATE`. The codes in this table (`CLAIM_VIEW/CREATE/UPDATE/DELETE/STATUS_UPDATE/COMMENT_CREATE/TAG_MANAGE/EXPORT`) do not exist — there are no comment, tag, or export permissions because those features were not built.
+
 ---
 
 # 4. Claim Status Lifecycle
@@ -102,6 +106,8 @@ APPROVED
 REJECTED
 CLOSED
 ```
+
+**As-built (2026-07-29):** The shipped `ClaimStatus` enum has **11** values: `DRAFT, SUBMITTED, AWAITING_ANALYSIS, AWAITING_ASSIGNMENT, AWAITING_ACCEPTANCE, UNDER_INVESTIGATION, WAITING_FOR_CUSTOMER, APPROVED, REJECTED, CLOSED, REOPENED`. The design names above (`UNDER_REVIEW`, `PENDING_INFORMATION`, `ASSIGNED`, `INVESTIGATION_IN_PROGRESS`, `FRAUD_REVIEW`) do not exist. `isTerminal()` = `APPROVED|REJECTED|CLOSED`. There is no `CANCELLED`. `REOPENED` exists in the enum but its transition is **not wired** — there is no reopen endpoint. Status is advanced only through the action endpoints (`/submit`, `/assign`, `/auto-assign`, `/reassign`, `/decision`, `/request-information`) plus the internal processing pipeline, not via a free-form status setter.
 
 ---
 
@@ -129,6 +135,13 @@ CLOSED
 
 # 5. Claim APIs
 
+**As-built (2026-07-29):** The shipped claim endpoints (base `/api/v1`, tenant from JWT — there is no `{companyId}` path variable) are:
+> - `POST /claims` (`CLAIM_WRITE`) · `GET /claims/{id}` (`CLAIM_READ`) · `GET /claims?page&size` → `PagedResponse` (`CLAIM_READ`). (Unlike `/customers`, `/users`, and `/policies`, the claims list has NO `/options` sibling.)
+> - `POST /claims/{id}/submit` (`CLAIM_SUBMIT`) · `POST /claims/{id}/assign` (`CLAIM_ASSIGN`) · `POST /claims/{id}/auto-assign` (`CLAIM_ASSIGN`) · `POST /claims/{id}/reassign` (`CLAIM_ASSIGN`) · `POST /claims/{id}/decision` (`CLAIM_DECIDE`, approve/reject) · `POST /claims/{id}/request-information` (`CLAIM_INVESTIGATE`).
+> - `GET /claims/{id}/processing` (`CLAIM_READ`) · `GET /claims/{id}/audit` (`AUDIT_READ`) · `POST|GET /claims/{id}/investigation-notes` (`CLAIM_INVESTIGATE` / `CLAIM_READ`) · the document sub-resources (see Document Management API).
+>
+> Endpoints described below that were NOT built: `PUT /claims/{id}` (update), `DELETE /claims/{id}`, `GET /claims/search`, `PATCH /claims/{id}/status`, `GET …/allowed-statuses`, `GET …/history` (read history via `…/audit`), comments, tags, `…/timeline` (staff), `…/summary`, and `GET /claims/export`.
+
 ---
 
 ## Create Claim
@@ -144,6 +157,8 @@ POST /api/v1/claims
 ```text
 CLAIM_CREATE
 ```
+
+**As-built (2026-07-29):** Permission is `CLAIM_WRITE`. A newly created claim starts in `DRAFT` (not `SUBMITTED`); the processing pipeline is triggered by the separate `POST /claims/{id}/submit` (`CLAIM_SUBMIT`), which moves it `SUBMITTED → AWAITING_ANALYSIS → …`. The `Idempotency-Key` header is not honored.
 
 ### Headers
 
@@ -241,6 +256,8 @@ CLAIM_VIEW
 
 ## Update Claim
 
+**As-built (2026-07-29):** Not built — there is no `PUT /claims/{id}`.
+
 ### Endpoint
 
 ```http
@@ -285,6 +302,8 @@ CLAIM_UPDATED
 ---
 
 ## Delete Claim
+
+**As-built (2026-07-29):** Not built — there is no `DELETE /claims/{id}`.
 
 ### Endpoint
 
@@ -349,6 +368,8 @@ createdTo
 GET /api/v1/claims?status=UNDER_REVIEW
 ```
 
+**As-built (2026-07-29):** `GET /claims?page&size` requires `CLAIM_READ` and returns the `{success, data}` envelope with `data` = `PagedResponse<T>` (`{content, page, size, totalElements, totalPages, first, last}` — booleans `first`/`last`, not `hasNext`/`hasPrevious`). `size` is clamped to 1..100. The only query params are `page` (default 0) and `size` (default 10, clamped to 1..100); the rich filter/sort set below (status/claimTypeId/customerId/assignedUserId/fraudRiskLevel/date range) is not implemented. The claims list has no `/options` sibling (only `/customers`, `/users`, `/policies` do).
+
 ### Success Response
 
 ```json
@@ -364,6 +385,8 @@ GET /api/v1/claims?status=UNDER_REVIEW
 ---
 
 ## Search Claims
+
+**As-built (2026-07-29):** Not built — there is no `GET /claims/search` endpoint.
 
 ### Endpoint
 
@@ -400,6 +423,8 @@ GET /api/v1/claims/search?q=CLM-2026
 ---
 
 ## Update Claim Status
+
+**As-built (2026-07-29):** Not built as a generic status setter. There is no `PATCH /claims/{id}/status`. Status changes happen through purpose-built action endpoints — `/submit`, `/assign`, `/auto-assign`, `/reassign`, `/decision` (`CLAIM_DECIDE`, for approve/reject), `/request-information` — plus the internal processing pipeline.
 
 ### Endpoint
 
@@ -447,6 +472,8 @@ CLAIM_STATUS_CHANGED
 
 ## Get Allowed Status Transitions
 
+**As-built (2026-07-29):** Not built — there is no `GET /claims/{id}/allowed-statuses`.
+
 ### Endpoint
 
 ```http
@@ -469,6 +496,8 @@ GET /api/v1/claims/{claimId}/allowed-statuses
 ---
 
 ## Get Claim History
+
+**As-built (2026-07-29):** There is no `GET /claims/{id}/history`. Claim history/audit is read via `GET /api/v1/claims/{id}/audit` (permission `AUDIT_READ`).
 
 ### Endpoint
 
@@ -498,6 +527,8 @@ Retrieve complete claim timeline.
 ---
 
 # 9. Claim Comment APIs
+
+**As-built (2026-07-29):** Not built. The comment APIs (section 9) and the tag APIs (section 10) do not exist — there are no `claim_comment`, `claim_tag`, or `claim_tag_mapping` tables or endpoints. Free-text notes on a claim are handled instead by investigation-notes: `POST /claims/{id}/investigation-notes` (`CLAIM_INVESTIGATE`) and `GET /claims/{id}/investigation-notes` (`CLAIM_READ`).
 
 ---
 
@@ -668,6 +699,8 @@ GET /api/v1/claims/{claimId}/tags
 
 ## Request Additional Information
 
+**As-built (2026-07-29):** The endpoint is `POST /api/v1/claims/{id}/request-information` (permission `CLAIM_INVESTIGATE`), which moves the claim to `WAITING_FOR_CUSTOMER`. There is no `/information-requests` collection, no `GET …/information-requests`, and no `…/information-requests/{requestId}/submit` — the customer responds through the customer portal.
+
 ### Endpoint
 
 ```http
@@ -755,6 +788,8 @@ INFORMATION_REQUEST_RESPONDED
 
 # 12. Claim Timeline API
 
+**As-built (2026-07-29):** No staff-facing `GET /claims/{id}/timeline`. Staff read the unified history via `GET /claims/{id}/audit` (`AUDIT_READ`). A timeline endpoint exists only on the customer portal: `GET /api/v1/portal/claims/{id}/timeline`.
+
 ---
 
 ## Get Claim Timeline
@@ -795,6 +830,8 @@ Unified timeline of:
 
 # 13. Claim Summary API
 
+**As-built (2026-07-29):** Not built — there is no `GET /claims/{id}/summary`.
+
 ---
 
 ## Get Claim Summary
@@ -826,6 +863,8 @@ Optimized dashboard view.
 ---
 
 # 14. Export APIs
+
+**As-built (2026-07-29):** Not built — there is no `GET /claims/export` and no `CLAIM_EXPORT` permission.
 
 ---
 

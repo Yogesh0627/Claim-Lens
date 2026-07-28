@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Concrete divergences are flagged inline as **As-built** notes.
+
 # 07.1 API Standards
 
 ## Document Information
@@ -177,6 +179,8 @@ Response:
 
 if tenant mismatch occurs.
 
+**As-built (2026-07-29):** There is NO `X-Tenant-Id` request header. Tenant identity is carried inside the JWT (`tid` claim) and resolved server-side via a Hibernate `@TenantId` discriminator — clients cannot set or spoof it. A cross-tenant read/write by direct id returns **404** (no existence oracle), NOT 403.
+
 ---
 
 # 8. Correlation ID
@@ -216,9 +220,13 @@ Backend generates one automatically.
 | Content-Type     | Yes         | Payload Type             |
 | Idempotency-Key  | Conditional | Critical POST Operations |
 
+**As-built (2026-07-29):** `X-Tenant-Id` is NOT used (tenant comes from the JWT). `Idempotency-Key` is not honored — no idempotency layer was built.
+
 ---
 
 # 10. Standard Response Envelope
+
+**As-built (2026-07-29):** Successful responses are wrapped in a `{ "success": true, "data": … }` envelope (not returned as bare resource objects). List endpoints return `data` as a `PagedResponse<T>` — see the pagination note below.
 
 Successful responses may return resource objects directly.
 
@@ -269,6 +277,8 @@ Response:
   "hasPrevious": false
 }
 ```
+
+**As-built (2026-07-29):** The shipped `PagedResponse<T>` fields are `{content, page, size, totalElements, totalPages, first, last}` — boolean `first`/`last`, NOT `hasNext`/`hasPrevious`. `size` is clamped to 1..100 (via `PageRequests`). Only four list endpoints are paginated — `GET /claims`, `/customers`, `/users`, `/policies` — each with an unpaged `/options` sibling for pickers.
 
 ---
 
@@ -423,6 +433,8 @@ Avoid:
 | 500  | Internal Error      |
 | 503  | Service Unavailable |
 
+**As-built (2026-07-29):** Validation failures return **400** (with field errors), not 422. Additional handlers added post-audit: unmapped verb on a valid path → **405**, unsupported `Content-Type` → **415**, oversize upload → **413**. Rate-limit exceed → 429 (fail-open buckets). Cross-tenant/owner read → **404**; access denied → **403**.
+
 ---
 
 # 20. Error Response Structure
@@ -526,6 +538,8 @@ Files stored in:
 ```text
 AWS S3
 ```
+
+**As-built (2026-07-29):** Enforced upload limits are **10 MB per file / 15 MB per request** (oversize → 413), not 50 MB. No virus/malware scanning is performed. Storage is pluggable via `STORAGE_PROVIDER` — S3/Cloudflare R2 in prod, local filesystem by default. Downloads are served through the backend (hardened by `SafeDownloads`: image/pdf inline, everything else octet-stream + attachment), not via presigned S3 URLs.
 
 Metadata stored in PostgreSQL.
 

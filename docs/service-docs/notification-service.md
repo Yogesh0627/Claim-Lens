@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; the authoritative behaviour is the service code. Where this diverges, the code wins ([`../architecture.md`](../architecture.md), [`../domain-model.md`](../domain-model.md), [`../audit-report.md`](../audit-report.md)); deltas flagged inline as **As-built** notes.
+
 # 09.8 Notification Service Design
 
 ## Document Information
@@ -31,6 +33,8 @@ Responsibilities:
 * Notification History
 
 The Notification Module consumes business events from all ClaimLens modules and transforms them into user-facing communications.
+
+**As-built (2026-07-29):** notifications are **not** event/outbox-driven — there is no outbox and no event bus (see `service-design.md` §11). Business services call `NotificationService` **directly and synchronously** inside their transaction (e.g. `ClaimServiceImpl` on submit/assign/decide). The in-app `Notification` row is saved in-transaction; the email copy is fired **best-effort** and swallows failures so it can never break the caller. There is a single `Notification` entity — no `NotificationTemplate` or `NotificationDelivery`, and no `TemplateService` / `RetryService` / `InAppNotificationService` / delivery-tracking / retry workers. The second channel is a swappable **`EmailSender`** interface: `LogEmailSender` (default), `SmtpEmailSender`, `ResendEmailSender`, selected by `claimlens.email.provider` — **not AWS SES**. When `claimlens.email.rich.enabled` is on, claim emails are rendered as branded HTML + PDF via `ClaimReportService`.
 
 ---
 
@@ -213,6 +217,8 @@ V1:
 AWS SES
 ```
 
+**As-built (2026-07-29):** the V1 provider is **not AWS SES**. Email goes through the `EmailSender` interface — `LogEmailSender` (default, offline/tests), `SmtpEmailSender`, or `ResendEmailSender` — chosen by `claimlens.email.provider`. Rich claim emails (branded HTML + PDF attachment) are built by `ClaimReportService` when `claimlens.email.rich.enabled=true`.
+
 ---
 
 Future:
@@ -275,6 +281,8 @@ getUnreadCount()
 
 # 9. Retry Service
 
+**As-built (2026-07-29):** not built. There is no delivery record, retry policy, retry worker, or permanent-failure state (§9, §13 `NotificationDelivery`, §16 workers). Email is a single best-effort attempt; failure is logged and swallowed. §15 event publishing / outbox is likewise not built.
+
 Responsibilities:
 
 ```text
@@ -336,6 +344,8 @@ POST  /notifications/{notificationId}/read
 
 GET   /notifications/unread/count
 ```
+
+**As-built (2026-07-29):** only two endpoints exist, both **self-scoped by the JWT principal** (no `@PreAuthorize` code): `GET /notifications` (the caller's own notifications, newest first) and `POST /notifications/{id}/read`. There is no get-by-id and no unread-count endpoint. `markRead` on someone else's notification returns **404**, not 403 (no ownership oracle).
 
 ---
 
@@ -625,6 +635,8 @@ Required Permissions:
 NOTIFICATION_VIEW
 ```
 
+**As-built (2026-07-29):** there is no `NOTIFICATION_VIEW` permission — the endpoints require only authentication and are **self-scoped** to the principal in code (see §10).
+
 ---
 
 User Access Rule:
@@ -633,6 +645,8 @@ User Access Rule:
 User May View
 Only Own Notifications
 ```
+
+**As-built (2026-07-29):** enforced — reads are filtered to `recipientUserId = currentUserId()`, and cross-user `markRead` returns 404.
 
 ---
 

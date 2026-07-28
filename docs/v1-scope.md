@@ -124,6 +124,8 @@ Responsibilities:
 * Respond to information requests
 * Track claim status
 
+**As-built (2026-07-29):** V1 shipped a richer, finer-grained set of **11 global roles** (RBAC is permission-based, not role-name-based). The roles above map onto these codes: TENANT_ADMIN (Company Admin), PRODUCT_MANAGER, CLAIMS_MANAGER, INVESTIGATION_MANAGER, INVESTIGATOR, CLAIMS_ADJUSTER, CUSTOMER_SUPPORT, AUDITOR, ANALYST, PLATFORM_ADMIN (platform operator, global), and CUSTOMER. "Regional Admin" and "Employee" were not shipped as distinct roles; regional scoping is handled via region/branch assignment and the manager roles.
+
 ---
 
 # Claim Management
@@ -137,6 +139,8 @@ Responsibilities:
 * Claim Status History
 * Claim Comments
 * Claim Tags
+
+**As-built (2026-07-29):** Drafts, submission, tracking, and full status history shipped. **Claim reopening is only partial** — `REOPENED` exists as a status (enum + DB constraint + `reopened_at` column) but no transition is wired to it (no reopen endpoint/service method), so a claim cannot actually be reopened in V1; the closest live behaviour is the info-request loop (WAITING_FOR_CUSTOMER → UNDER_INVESTIGATION). **Claim Comments and Claim Tags were not built** — investigator annotation is served by structured Investigation Notes instead.
 
 ## Not Included
 
@@ -154,12 +158,15 @@ Supported States:
 * SUBMITTED
 * AWAITING_ANALYSIS
 * AWAITING_ASSIGNMENT
+* AWAITING_ACCEPTANCE
 * UNDER_INVESTIGATION
 * WAITING_FOR_CUSTOMER
 * APPROVED
 * REJECTED
 * CLOSED
 * REOPENED
+
+**As-built (2026-07-29):** The `ClaimStatus` enum ships all 11 states above (AWAITING_ACCEPTANCE covers the assignment-acceptance handshake). Terminal states are APPROVED, REJECTED, CLOSED.
 
 ---
 
@@ -203,10 +210,12 @@ Technology:
 * Python
 * EasyOCR / Tesseract
 
+**As-built (2026-07-29):** OCR runs behind an interface with an offline default; the shipped providers are **Google Vision** (`OCR_PROVIDER=vision`) or a **Python Tesseract service** (`=http`), selectable per environment. OCR jobs run per-document in the async processing pipeline.
+
 ## Not Included
 
 * AI Document Understanding
-* LLM-Based Document Analysis
+* LLM-Based Document Analysis (per-document OCR only; note that a separate LLM-based RAG coverage assistant — see below — was added for policy Q&A)
 
 ---
 
@@ -252,6 +261,8 @@ Examples:
 * Missing Required Documents
 * Location Mismatch
 * Repair Cost Anomaly
+
+**As-built (2026-07-29):** Fraud scoring is a weighted, explainable rule engine (`FraudEngine.evaluate()` → 0-100 → LOW/MEDIUM/HIGH), with per-rule contributions persisted for explainability. A fraud-evaluation harness ships at `tools/fraud-eval` for regression-testing the ruleset.
 
 ## Not Included
 
@@ -320,6 +331,8 @@ Delivery Channels:
 
 * In-App Notifications
 * Email Notifications
+
+**As-built (2026-07-29):** Email delivers through a provider interface (offline log default); production uses **Resend** (`EMAIL_PROVIDER`). Invitation and password-reset emails are part of the shipped onboarding flow.
 
 ## Not Included
 
@@ -421,6 +434,8 @@ Technology:
 * Password Encryption
 * Audit Logging
 
+**As-built (2026-07-29):** Also shipped: server-side per-request permission resolution (JWT carries roleId, not permissions), SHA-256-hashed single-use rotating refresh/invite/reset tokens, and **request rate limiting** (auth / AI / upload buckets, Redis in prod). A dedicated security-hardening pass was completed — stored-XSS on document download fixed, proper 405/415/413 handlers, explicit upload size limits, `/roles` authz — with remaining known gaps documented. Full detail in `docs/audit-report.md`. Backend ships **106 passing tests** (3 skipped) run against a real PostgreSQL test database.
+
 ---
 
 # Deployment
@@ -430,6 +445,8 @@ Technology:
 * AWS Deployment
 * Dockerized Services
 * S3 Document Storage
+
+**As-built (2026-07-29):** The delivered demo deployment targets **Render** (backend + FastAPI analysis service, Dockerized) and **Vercel** (frontend), with **Neon** PostgreSQL, **Upstash** Redis (cache + rate limit), and **Cloudflare R2** for document storage (S3-compatible; storage is behind a provider interface with a local-filesystem default). AWS remains a supported target but was not the shipped host.
 
 ---
 
@@ -449,6 +466,26 @@ The following features are intentionally excluded:
 * Kubernetes
 * Advanced Workflow Builder
 * AI Investigation Assistant
+
+**As-built (2026-07-29):** A full AI *investigation* assistant remains out of scope, but V1 did ship an **LLM-based RAG coverage assistant** for policy Q&A (Gemini for chat + embeddings, pgvector retrieval, answers with citations; offline stub default). This is a coverage-explanation aid, not an autonomous investigation agent.
+
+---
+
+# As-Built Additions (2026-07-29)
+
+Capabilities delivered in V1 that were not called out in the original scope draft:
+
+* **Customer portal** — a customer-facing surface (second ownership gate) for creating claims, uploading documents, responding to information requests, and tracking status.
+* **RAG coverage assistant** — Gemini-backed policy Q&A with citations and pgvector retrieval (offline stub fallback).
+* **Full org hierarchy** — region, branch, department, designation, plus reporting chains and user region/branch assignment.
+* **Product catalog + versioning + policies** — insurance products with immutable versions and per-product required-document policies; policy documents chunked for the coverage assistant.
+* **Document versioning** with safe-download handling (content-type allowlist).
+* **Information-request loop** — the WAITING_FOR_CUSTOMER cycle for requesting and receiving additional info.
+* **Platform console + impersonation** — a global platform-admin surface for cross-tenant operations and tenant impersonation.
+* **Invitation-based onboarding** — token-based user invitations and password reset (emails via Resend).
+* **Request rate limiting** — auth / AI / upload buckets (Redis in prod, in-memory in dev).
+* **Server-side pagination** — paged list endpoints (`/claims`, `/customers`, `/users`, `/policies`) with unpaged `/options` siblings for pickers; frontend pagination hook + bar.
+* **Fraud-evaluation harness** — `tools/fraud-eval` for regression-testing the fraud ruleset.
 
 ---
 

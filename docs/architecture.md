@@ -8,6 +8,8 @@ Owner: Niyo Technologies
 
 Last Updated: June 2026
 
+**As-built (2026-07-29):** This document was written as the V1 design target. It has been reconciled against the shipped code — where the build diverged from the original design, the original intent is preserved and an **As-built** note records what was actually delivered. Verified stack: Java 21, Spring Boot 4 (4.0.6), Spring Security 7, Hibernate 7 / Spring Data JPA, PostgreSQL 17, Flyway V1–V32; Next.js 16 (App Router) + React 19 + Tailwind 4 + shadcn/ui frontend; Python FastAPI analysis-service.
+
 ---
 
 # Purpose
@@ -92,6 +94,8 @@ Technology
 * TypeScript
 * Material UI
 
+**As-built (2026-07-29):** Next.js 16 (App Router) + React 19 + TypeScript. The UI layer is **Tailwind CSS 4 + shadcn/ui (Radix primitives)**, not Material UI. State is Redux Toolkit (auth only) + axios; forms use react-hook-form (no zod); dates via dayjs. The listed "portals" are role-scoped views of a single app, not separate deployments.
+
 Responsibilities
 
 * Customer Portal
@@ -113,6 +117,8 @@ Horizontal
 Technology
 
 * Spring Boot
+
+**As-built (2026-07-29):** Java 21, Spring Boot 4 (4.0.6), Spring Security 7, Hibernate 7 / Spring Data JPA, PostgreSQL 17, Flyway migrations V1–V32. Packaged as a modular monolith with per-domain packages (`claim`, `document`, `fraud`, `processing`, `assignment`, `tenancy`, `security`, `auth`, `organization`, `policy`, `product`, `portal`, `coverage`, `audit`, `analytics`, …).
 
 Responsibilities
 
@@ -160,6 +166,8 @@ Technology
 * EasyOCR
 * Tesseract
 
+**As-built (2026-07-29):** OCR is not a standalone EasyOCR service. It sits behind an interface with an **OFFLINE NoOp default**; the switching flag `OCR_ENABLED` plus `OCR_PROVIDER` selects **Google Cloud Vision (in-JVM, `=vision`)** or an optional **Python HTTP OCR service (`=http`, Tesseract-based)**. Production runs Vision.
+
 Responsibilities
 
 * OCR Processing
@@ -176,6 +184,8 @@ Technology
 
 * Python
 * OpenCV
+
+**As-built (2026-07-29):** FastAPI service (OpenCV + imagehash + Pillow), deployed separately on Render. Behind an interface with an OFFLINE NoOp default; enabled by `ANALYSIS_ENABLED` with `ANALYSIS_SERVICE_URL`, and authenticated to the backend by a shared secret (`ANALYSIS_SHARED_SECRET`).
 
 Responsibilities
 
@@ -329,6 +339,8 @@ No Race Conditions
 
 No Duplicate Execution
 
+**As-built (2026-07-29):** The atomic gate keys on a conditional UPDATE plus a partial-unique `fraud_job` row, and it settles when both OCR and analysis reach a **TERMINAL** state — succeeded OR retries-exhausted — so a failing document can never hang the gate. The gate never fires until both are terminal.
+
 ---
 
 # Claim Snapshot Builder
@@ -378,6 +390,8 @@ Generate Fraud Alerts
 Update Claim
 ↓
 Queue Assignment
+
+**As-built (2026-07-29):** `FraudEngine.evaluate()` runs weighted `FraudRule`s → a **0–100 score** bucketed **LOW / MEDIUM / HIGH**, and is **explainable** — each rule's contribution is persisted to `fraud_rule_execution`. On completion the claim moves to `AWAITING_ASSIGNMENT`.
 
 ---
 
@@ -533,6 +547,14 @@ tenant:analysis_requests_per_hour
 
 Protects platform stability.
 
+**As-built (2026-07-29):** Rate limiting is per-IP / per-user (not per-tenant) across three buckets: `auth` (20/min per IP per URI), `ai` (30/min per user on `/coverage*` + `/knowledge`), and `upload` (60/min per user on POST `/documents`). Backing store is **Redis/Upstash under the `prod` profile, in-memory in dev**. The limiter **fails open** (Redis unreachable → allow), and bucket keys use the leftmost `X-Forwarded-For` — a spoofable header, tracked as a known gap (see docs/audit-report.md, H2).
+
+---
+
+# Pagination
+
+**As-built (2026-07-29):** Added this session; not in the original design. List endpoints (`GET /claims`, `/customers`, `/users`, `/policies`) return a `PagedResponse<T>` `{content, page, size, totalElements, totalPages, first, last}` and accept `?page&size` (clamped to page ≥ 0, size 1..100 by `PageRequests`). Each gained a sibling **`/options`** endpoint (unpaged, for pickers/dropdowns); `/users/options?role=` replaced the old role filter on `/users`. Frontend consumes these via a `usePaginated` hook (auto-clamps to the last page after a delete so lists never show a blank page) and a shared `pagination-bar` component.
+
 ---
 
 # PostgreSQL Architecture
@@ -554,6 +576,8 @@ All business entities contain:
 tenant_id
 
 PostgreSQL remains the source of truth.
+
+**As-built (2026-07-29):** Isolation is enforced by a **Hibernate `@TenantId` discriminator** on `TenantAwareEntity` (global entities — Role, Permission, and the tenant-root InsuranceCompany — extend `BaseEntity` instead). `ClaimLensTenantIdentifierResolver.isRoot()` is hardcoded `false`, and an unbound context resolves to `TenantContext.SYSTEM_TENANT = -1L` (matches no real rows). `TenantContext` is a plain `ThreadLocal` **cleared in a `finally`**. A cross-tenant read/write by direct id returns **404** (no existence oracle) — verified live against a second tenant.
 
 ---
 
@@ -585,6 +609,8 @@ analytics
 
 * analytics_snapshot
 * dashboard_metric
+
+**As-built (2026-07-29):** All tables live in the single `public` schema (organized by module, not separate Postgres schemas), created by Flyway V1–V32. Investigation is a lightweight `InvestigationNote` — the originally-planned `FraudCase`, `InvestigationFinding`, `InvestigationEvidence`, and `AuditAttachment` entities were **not built**. Analytics is computed on read rather than from materialized `analytics_snapshot`/`dashboard_metric` tables.
 
 ---
 
@@ -655,6 +681,8 @@ Used For
 
 Redis is never a source of truth.
 
+**As-built (2026-07-29):** Redis (Upstash) is engaged only under the `prod` profile — for the permission cache and the rate-limiter. In dev the same interfaces fall back to **Caffeine (cache) / in-memory (rate limit)**, so Redis is not required to run locally. Assignment concurrency is handled in Postgres (`FOR UPDATE SKIP LOCKED`), not Redis locks.
+
 ---
 
 # S3 Architecture
@@ -668,6 +696,8 @@ Stores
 * OCR Payloads
 
 Database stores metadata only.
+
+**As-built (2026-07-29):** Storage is behind an interface with a **local-filesystem OFFLINE default**; `STORAGE_PROVIDER=s3` switches to any S3-compatible backend — production uses **Cloudflare R2**. Downloads are hardened by `SafeDownloads` (see Security Architecture / audit-report.md).
 
 ---
 
@@ -715,6 +745,8 @@ Metrics
 * OCR Processing Time
 * Analysis Processing Time
 
+**As-built (2026-07-29):** Spring Boot Actuator is wired and exposes the health endpoint used for platform health checks; a dedicated Prometheus + Grafana stack is **not deployed** in the V1 hosted setup (Render/Vercel provide their own platform metrics). Treat this section as the intended metrics model rather than a running dashboard.
+
 ---
 
 # Logging Architecture
@@ -755,6 +787,8 @@ Used by:
 * Monitoring
 * Load Balancer
 
+**As-built (2026-07-29):** The backend health check is Actuator's **`/actuator/health`** (this is the path Render probes in `render.yaml`); the Python analysis-service exposes `/health`.
+
 ---
 
 # Failure Recovery
@@ -776,6 +810,8 @@ Notification Failure
 Retry
 ↓
 Dead Letter Queue
+
+**As-built (2026-07-29):** Retries are bounded; when a job exhausts them it lands in a **terminal (retries-exhausted)** state rather than a separate broker-backed DLQ/manual-review queue. Critically, a permanently-failing OCR/analysis job is still *terminal*, so the fraud gate settles and the claim never hangs. Notifications are delivered by **synchronous in-process calls** from the claim service to `NotificationService` (an in-app row + best-effort email via the `EmailSender` provider) — there is **no** message broker and **no** transactional-outbox layer in V1 (the `events`/`outbox` packages are empty placeholders; no outbox table exists).
 
 ---
 
@@ -821,6 +857,19 @@ Cluster Future
 * Audit Logging
 * Secure S3 Access
 
+**As-built (2026-07-29):**
+
+* **JWT** — JJWT, **HS256 with the algorithm pinned on parse** (`verifyWith(key)`), so `alg:none`/algorithm-confusion is rejected 401. The secret has no default (fail-fast). The token carries `{sub, tid, rid, …}` — the **roleId, not permissions**. Permissions are resolved **server-side per request** from `role_permission` (+ per-tenant `tenant_role_permission` overrides) and cached (Caffeine dev / Redis prod).
+* **Refresh tokens** — 256-bit SecureRandom, **SHA-256 hashed at rest**, single-use, **rotated on use**. Invitation/reset tokens are 32-byte SecureRandom, SHA-256 at rest, single-use, TTL'd (1h reset / 7d invite).
+* **RBAC** — 11 global roles; permission checks are code-based (module `_READ`/`_WRITE`/etc.) evaluated against the resolved permission set. The customer portal adds an **ownership gate** (a customer can only reach their own claims/policies).
+* **Tenant Isolation** — Hibernate `@TenantId` discriminator (see PostgreSQL Architecture); cross-tenant access returns 404.
+
+**Security posture — audit-verified (full detail in [docs/audit-report.md](audit-report.md)):**
+
+* **Held under direct attack:** tenant isolation, JWT parsing (no `alg:none`/confusion), the customer-portal ownership gate, SQL-injection resistance, and path-traversal resistance.
+* **Fixed this pass:** the **critical stored-XSS on document download** (now guarded by `SafeDownloads` — allowlisted image/pdf served inline, everything else `octet-stream` + `attachment`); 405/415/413 error handlers (were 500s); explicit upload limits (10 MB file / 15 MB request); `/roles` authz (`USER_READ`); catch-all now logs; the `/error-test` debug endpoint removed.
+* **Open / documented tradeoffs:** `X-Forwarded-For` rate-limit bypass, unaudited platform-admin impersonation, AI deny-list authz, no session-revoke on password change, in-tenant product-doc IDOR, 6-char password minimum, and the 15-min access-token revocation window.
+
 ---
 
 # Deployment Target
@@ -840,6 +889,17 @@ Deployment
 Docker Containers On EC2
 
 No Kubernetes In V1
+
+**As-built (2026-07-29):** V1 ships on a managed PaaS topology, not self-hosted AWS. A Render blueprint (`render.yaml`) deploys two Docker services — the **Spring Boot backend** and the **FastAPI analysis-service** (both `region: singapore`, free plan, health-checked). The rest is external managed services:
+
+* **Frontend** → Vercel
+* **Database** → Neon PostgreSQL (external, DIRECT endpoint; pgvector for RAG)
+* **Cache / rate-limit** → Upstash Redis (`prod` profile)
+* **Object storage** → Cloudflare R2
+* **Email** → Resend
+* **OCR** → Google Vision · **AI/RAG** → Gemini
+
+`DEMO_SEED=true` seeds a "Demo Insurance" tenant. Full steps in deploy.md. The EC2/RDS/ElastiCache/ALB layout above remains the reference self-hosted design.
 
 ---
 

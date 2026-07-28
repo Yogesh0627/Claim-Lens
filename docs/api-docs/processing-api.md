@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Concrete divergences are flagged inline as **As-built** notes.
+
 # 07.10 Processing & OCR API
 
 ## Document Information
@@ -18,6 +20,11 @@
 # 1. Overview
 
 The Processing Module orchestrates all automated document processing activities within ClaimLens.
+
+**As-built (2026-07-29):** the described `/api/v1/processing/**` REST surface (job lookups, result lookups, reprocess, dashboard, recovery, orchestrator, manual fraud trigger) was **not built as a public API**. Jobs are internal work items drained by an `@Scheduled` worker using `FOR UPDATE SKIP LOCKED` claim-and-mark — not fetched, retried, or triggered over HTTP. The one shipped read endpoint is:
+> - **`GET /api/v1/claims/{id}/processing`** (`CLAIM_READ`) — returns the claim's processing view: **per-document OCR** results and **per-image analysis** results, plus the fraud status/score.
+>
+> Fraud evaluation runs at an **atomic fraud gate**: once every OCR + analysis job for the claim reaches a TERMINAL state (succeeded or retries-exhausted), a conditional `UPDATE` guarded by a partial-unique `fraud_job` row admits exactly one `FraudEngine.evaluate()` run, then the claim advances `AWAITING_ANALYSIS → AWAITING_ASSIGNMENT`. The gate never hangs and cannot be triggered manually. Sections 6–15 below describe endpoints that do not exist.
 
 Responsibilities:
 
@@ -58,6 +65,8 @@ ocr_result
 ocr_field_extraction
 analysis_result
 ```
+
+**As-built (2026-07-29):** the shipped processing entities are `ClaimProcessingState`, `OcrJob`, `OcrResult`, `AnalysisJob`, `AnalysisResult`, plus `ProcessingJob` and `FraudJob` (the fraud-gate marker). There is **no separate `ocr_field_extraction` entity** — extracted fields live inside the OCR result payload.
 
 Related Entities:
 
@@ -157,6 +166,8 @@ FAILED
 | ANALYSIS_RESULT_VIEW | View analysis results                |
 | PROCESSING_ADMIN     | Administrative processing operations |
 
+**As-built (2026-07-29):** none of these `PROCESSING_*` / `*_RESULT_VIEW` permissions exist. The single processing view endpoint is guarded by **`CLAIM_READ`**.
+
 ---
 
 # 6. Claim Processing State APIs
@@ -170,6 +181,8 @@ FAILED
 ```http
 GET /api/v1/processing/claims/{claimId}/state
 ```
+
+**As-built (2026-07-29):** the real endpoint is **`GET /api/v1/claims/{id}/processing`** (`CLAIM_READ`) — a single view combining processing state, per-document OCR results, per-image analysis results, and fraud status. The separate `/state` and `/summary` (below) paths were not built.
 
 ### Permissions
 
@@ -214,6 +227,8 @@ GET /api/v1/processing/claims/{claimId}/summary
 ---
 
 # 7. OCR Job APIs
+
+**As-built (2026-07-29):** not built — OCR jobs are internal worker items with no HTTP surface (no get/list/retry). Results appear in `GET /claims/{id}/processing`.
 
 ---
 
@@ -419,6 +434,8 @@ fieldValue
 
 # 10. Analysis Job APIs
 
+**As-built (2026-07-29):** not built — analysis jobs (sections 8, 9, 10, 11) are internal worker items with no HTTP surface. Analysis is **per-image**; results surface only through `GET /claims/{id}/processing`.
+
 ---
 
 ## Get Analysis Job
@@ -548,6 +565,8 @@ GET /api/v1/processing/documents/{documentId}/analysis-results
 
 # 12. Reprocessing APIs
 
+**As-built (2026-07-29):** not built — there are no reprocess endpoints (`/reprocess`).
+
 ---
 
 ## Reprocess Document Version
@@ -629,6 +648,8 @@ CLAIM_REPROCESS_STARTED
 ---
 
 # 13. Job Monitoring APIs
+
+**As-built (2026-07-29):** not built — no processing dashboard, failed-jobs, recovery (section 14), or orchestrator (section 15) endpoints. Recovery is handled automatically by the `@Scheduled` worker (settles TERMINAL, never hangs), and fraud runs at the atomic gate — there is no manual `/evaluate-fraud` trigger.
 
 ---
 

@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; the authoritative behaviour is the code. Where this diverges, the code wins ([`../architecture.md`](../architecture.md), [`../domain-model.md`](../domain-model.md)); deltas flagged inline as **As-built** notes.
+
 # 08.9 Analytics Events
 
 ## Document Information
@@ -30,6 +32,8 @@ The Analytics Module is responsible for:
 * Data Export Processing
 
 The Analytics Module primarily consumes business events from other modules and produces reporting-oriented events.
+
+> **As-built (2026-07-29):** Analytics is **computed on demand at query time**, not by consuming events or running scheduled snapshots. `DashboardService` aggregates directly from the live tables when the dashboard endpoint is called; there is **no `AnalyticsSnapshot` entity** (dropped) and the `analytics/scheduler` package is an **empty placeholder** (no snapshot scheduler). None of the events below are emitted: no `ANALYTICS_SNAPSHOT_*`, `DASHBOARD_METRICS_UPDATED`, `KPI_CALCULATED`, and no analytics **export worker or CSV/XLSX/PDF export** (`REPORT_EXPORT_*` do not exist). The "consumes events from …" and "primary inputs" lists are aspirational.
 
 ---
 

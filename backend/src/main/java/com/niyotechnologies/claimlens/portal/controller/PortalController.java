@@ -3,6 +3,7 @@ package com.niyotechnologies.claimlens.portal.controller;
 import com.niyotechnologies.claimlens.claim.dto.response.ClaimResponse;
 import com.niyotechnologies.claimlens.claim.dto.response.ClaimTimelineEntryResponse;
 import com.niyotechnologies.claimlens.common.response.ApiResponse;
+import com.niyotechnologies.claimlens.common.util.SafeDownloads;
 import com.niyotechnologies.claimlens.coverage.dto.AskCoverageResponse;
 import com.niyotechnologies.claimlens.portal.dto.request.PortalAskCoverageRequest;
 import com.niyotechnologies.claimlens.document.dto.response.DocumentContent;
@@ -60,14 +61,7 @@ public class PortalController {
             @PathVariable Long policyId,
             @PathVariable Long documentId) {
         DownloadedFile doc = portalService.downloadMyPolicyDocument(policyId, documentId);
-        MediaType contentType = doc.contentType() != null
-                ? MediaType.parseMediaType(doc.contentType())
-                : MediaType.APPLICATION_OCTET_STREAM;
-        return ResponseEntity.ok()
-                .contentType(contentType)
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        ContentDisposition.inline().filename(doc.fileName()).build().toString())
-                .body(doc.content());
+        return SafeDownloads.of(doc.content(), doc.fileName(), doc.contentType());
     }
 
     @GetMapping("/claims")
@@ -136,13 +130,7 @@ public class PortalController {
     }
 
     private ResponseEntity<byte[]> streamInline(DocumentContent doc) {
-        MediaType contentType = doc.contentType() != null
-                ? MediaType.parseMediaType(doc.contentType())
-                : MediaType.APPLICATION_OCTET_STREAM;
-        return ResponseEntity.ok()
-                .contentType(contentType)
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        ContentDisposition.inline().filename(doc.fileName()).build().toString())
-                .body(doc.content());
+        // Uploader-declared content type is never rendered inline — see SafeDownloads (stored-XSS guard).
+        return SafeDownloads.of(doc.content(), doc.fileName(), doc.contentType());
     }
 }

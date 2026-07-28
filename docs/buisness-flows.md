@@ -16,6 +16,8 @@ This document defines the end-to-end business workflows of ClaimLens V1.
 
 The workflows described here represent how users, investigators, managers, and system services interact throughout the claim lifecycle.
 
+**As-built (2026-07-29):** The claim lifecycle is the `ClaimStatus` enum, which defines **11 states**: DRAFT, SUBMITTED, AWAITING_ANALYSIS, AWAITING_ASSIGNMENT, AWAITING_ACCEPTANCE, UNDER_INVESTIGATION, WAITING_FOR_CUSTOMER, APPROVED, REJECTED, CLOSED, REOPENED (`isTerminal()` = APPROVED | REJECTED | CLOSED — REOPENED is intentionally non-terminal). The exercised path is **DRAFT → AWAITING_ANALYSIS → AWAITING_ASSIGNMENT → UNDER_INVESTIGATION → APPROVED | REJECTED**, with **WAITING_FOR_CUSTOMER** as a two-way detour off UNDER_INVESTIGATION. The other constants — **SUBMITTED**, **AWAITING_ACCEPTANCE**, **CLOSED**, **REOPENED** — are defined in the enum and the `claims.status` DB check-constraint, but no implemented endpoint/service currently writes them: submit jumps straight to AWAITING_ANALYSIS, assignment goes straight to UNDER_INVESTIGATION, and there is no accept or close transition. REOPENED and the `reopened_at` column exist as lifecycle/schema support for the reopen flow (Flow 16), which is not yet wired to an API.
+
 ---
 
 # Flow 1 - Insurance Company Onboarding
@@ -166,6 +168,8 @@ Create Audit Record
 
 Claim enters processing pipeline.
 
+**As-built (2026-07-29):** The claim number is generated at draft creation (`createDraftInternal`), not at submission. Submit runs the hard/soft checks in `ClaimSubmissionValidator`: HARD failures (reject; no claim is submitted) are incident-date-in-future, an open **DUPLICATE_CLAIM_EXISTS** (same policy + normalized vehicle registration + incident date as a non-terminal claim; settled APPROVED/REJECTED/CLOSED claims do not block), policy not active on the loss date, claimant not the policyholder, and vehicle not covered by the policy. Over-sum-insured is a **SOFT** signal only (returned as a warning, never a reject). There is no required-documents hard gate at submit. On success the status moves straight to **AWAITING_ANALYSIS** (the `SUBMITTED` enum value is skipped) and background processing (OCR + analysis, then fraud) starts.
+
 ---
 
 # Flow 6 - OCR Processing
@@ -262,6 +266,8 @@ HIGH
 
 Claim receives fraud classification.
 
+**As-built (2026-07-29):** Fraud runs only behind an **atomic gate** — a conditional UPDATE on the single per-claim processing-state row queues exactly one fraud job once BOTH the OCR and image-analysis stages are COMPLETE. `FraudEngine.evaluate` loads the tenant's ACTIVE ruleset for the claim type (or built-in default weights/thresholds when none is configured), sums the weights of the rules that trigger, maps the total to LOW/MEDIUM/HIGH by the ruleset thresholds, and stores an explainable `FraudScore` (a per-rule explanation string). It then advances the claim to **AWAITING_ASSIGNMENT**. The gate settles on a terminal job outcome (succeeded or retries-exhausted) so it never hangs.
+
 ---
 
 # Flow 9 - Auto Assignment
@@ -299,6 +305,8 @@ Status = AWAITING_ACCEPTANCE
 
 Investigator receives assignment.
 
+**As-built (2026-07-29):** The V1 `AssignmentEngine` strategy is **least-loaded only** (fewest active ASSIGNED assignments among ACTIVE investigators in the tenant); region/branch filters and round-robin are deferred to the assignment ruleset. Assignment is allowed only from **AWAITING_ASSIGNMENT** and moves the claim **directly to UNDER_INVESTIGATION** — there is no AWAITING_ACCEPTANCE step (that enum value is never set). Both a manual `assign` (a specific investigator, guarded so the assignee must hold CLAIM_INVESTIGATE) and `auto-assign` exist; the chosen investigator is notified.
+
 ---
 
 # Flow 10 - Assignment Acceptance
@@ -320,6 +328,8 @@ Status = UNDER_INVESTIGATION
 ## Outcome
 
 Investigation begins.
+
+**As-built (2026-07-29):** Not built as a distinct step in V1. There is no explicit accept action and no AWAITING_ACCEPTANCE state in the flow — an assignment takes effect immediately, and the claim is already UNDER_INVESTIGATION the moment it is assigned.
 
 ---
 
@@ -346,6 +356,8 @@ Assign New Investigator
 ## Outcome
 
 Claim reassigned automatically.
+
+**As-built (2026-07-29):** Investigator self-rejection is not built. The only reassignment path is the manager-driven `reassign` endpoint (see Flow 17), allowed only while the claim is UNDER_INVESTIGATION: it retires the live assignment(s) as REASSIGNED, creates a new one (a named investigator, or the auto-picked least-loaded investigator when none is given), and notifies the new investigator. `AssignmentStatus` has only ASSIGNED / REASSIGNED / COMPLETED — there is no REJECTED status.
 
 ---
 
@@ -413,6 +425,8 @@ Status = UNDER_INVESTIGATION
 
 Investigation continues with updated information.
 
+**As-built (2026-07-29):** `requestInformation` (CLAIM_INVESTIGATE) is allowed only while the claim is UNDER_INVESTIGATION and moves it to WAITING_FOR_CUSTOMER. The customer answers through the portal (`uploadToMyClaim`), which stores the new document version and — only if the claim was WAITING_FOR_CUSTOMER — re-queues **both OCR and image analysis** over the full, updated document set; fraud re-evaluates through the same atomic gate before the claim returns to UNDER_INVESTIGATION and the assigned investigator is notified.
+
 ---
 
 # Flow 14 - Claim Approval
@@ -439,6 +453,8 @@ Claim Closed
 
 Claim successfully approved.
 
+**As-built (2026-07-29):** `decide` (CLAIM_DECIDE) is allowed only from UNDER_INVESTIGATION. Approval sets `approvedAt`, records the fraud label `fraud_confirmed = false`, and moves the claim to **APPROVED**, which is itself terminal — there is no separate CLOSED transition (the CLOSED enum value is unused by V1 flows). The decision does not write a distinct approved-amount field.
+
 ---
 
 # Flow 15 - Claim Rejection
@@ -462,6 +478,8 @@ Claim Closed
 ## Outcome
 
 Claim rejected with full audit trail.
+
+**As-built (2026-07-29):** Rejection sets `rejectedAt` and records the fraud label `fraud_confirmed` from the request — true only when the investigator confirms fraud, otherwise the rejection is a plain coverage denial. The claim moves to **REJECTED**, which is terminal; there is no separate CLOSED step.
 
 ---
 
@@ -492,6 +510,8 @@ Investigation Continues
 ## Outcome
 
 Claim returns to active investigation.
+
+**As-built (2026-07-29):** REOPENED is a real, intentionally non-terminal lifecycle state, and the schema carries the `REOPENED` check-constraint value and a `reopened_at` column for it. In the current backend, however, no endpoint or service method transitions a claim into REOPENED — the reopen action (reopen request → manager approval → REOPENED → reassignment) is defined at the lifecycle/schema level but is not yet wired to an API. Note that the info-request loop in Flow 13 (returning a WAITING_FOR_CUSTOMER claim to UNDER_INVESTIGATION) is a separate mechanism, not the REOPENED transition.
 
 ---
 
@@ -569,6 +589,8 @@ Keep users informed.
 
 * In-App Notifications
 * Email Notifications
+
+**As-built (2026-07-29):** The claim events actually emitted are SUBMITTED, ASSIGNED (on both assign and reassign), INFO_REQUESTED, CUSTOMER_RESPONDED, APPROVED, and REJECTED — each delivered both in-app and (best-effort) by email. "Assignment Reassigned" maps to the ASSIGNED event on reassign; "Claim Reopened" is not emitted because the reopen transition is not wired (see Flow 16).
 
 ---
 

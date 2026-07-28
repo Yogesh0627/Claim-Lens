@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; the authoritative behaviour is the code. Where this diverges, the code wins ([`../architecture.md`](../architecture.md), [`../domain-model.md`](../domain-model.md)); deltas flagged inline as **As-built** notes.
+
 # 08.8 Notification Events
 
 ## Document Information
@@ -30,6 +32,8 @@ The Notification Module is responsible for:
 * Notification Analytics
 
 The Notification Module consumes business events from all domains and transforms them into customer-facing or user-facing communications.
+
+> **As-built (2026-07-29):** The notification module is real but **does not consume events** and has none of the lifecycle events below (`NOTIFICATION_CREATED/DELIVERED/FAILED/READ`, `TEMPLATE_RENDERED`, `NOTIFICATION_RETRY_QUEUED`). Callers (mainly `ClaimServiceImpl`) invoke `NotificationService.notify(...)` / `notifyClaimEvent(...)` **synchronously and in-process**. Each call writes one in-app `notification` row (`saveInApp`) and then sends a **best-effort email** via the swappable `EmailSender` interface (`ResendEmailSender` / `SmtpEmailSender` / `LogEmailSender`, selected by `claimlens.email.provider`); email failures are swallowed so they can't break the notification write. There is **no SMS channel** (only in-app + email), **no template/delivery-tracking/retry entities**, and **no delivery or retry worker**. Rich branded claim emails (HTML + PDF) are keyed off an in-code enum `ClaimEmailEvent` — `SUBMITTED, ASSIGNED, INFO_REQUESTED, CUSTOMER_RESPONDED, APPROVED, REJECTED` — not off published events. Reads are handled by `markRead` (ownership-checked); there is no `NOTIFICATION_READ` event.
 
 ---
 
@@ -279,6 +283,8 @@ EMAIL
 SMS
 IN_APP
 ```
+
+> **As-built (2026-07-29):** Only **IN_APP** (a `notification` row) and **EMAIL** (via `EmailSender`) exist. There is **no SMS** channel, and no per-delivery tracking record (`deliveryId`, `deliveredAt`).
 
 ---
 

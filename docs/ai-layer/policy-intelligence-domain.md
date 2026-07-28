@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Deltas flagged inline as **As-built** notes.
+
 # 15.1 Policy Intelligence (RAG) Domain
 
 Status: Approved
@@ -134,6 +136,8 @@ PolicyAnswer
 
 CoverageQuestionLog
 ```
+
+**As-built (2026-07-29):** Shipped as the `coverage` module with just three entities — `PolicyChunk`, `CoverageAnswer`, `CoverageCitation`. There is no `PolicyEmbedding` (embeddings are a pgvector column or in-Java cosine over stored chunk text), no chat-session/message model (Q&A is stateless), no `PolicyQuestion`, and no `CoverageQuestionLog`. A `CoverageCitation` links an answer back to the source `PolicyChunk`.
 
 ---
 
@@ -283,6 +287,8 @@ Model Tracking
 
 # CoverageQuestionLog
 
+**As-built (2026-07-29):** Not built as a distinct entity. Persisted answers (`CoverageAnswer`) with their citations (`CoverageCitation`) provide the traceability; a dedicated per-interaction audit log with retrieval/generation timings was not implemented.
+
 Represents the complete audit trail of an AI interaction.
 
 Stores:
@@ -314,6 +320,8 @@ Investigation Support
 ---
 
 # Supported Use Cases
+
+**As-built (2026-07-29):** All of the use cases below (Policy Copilot, Coverage Validation, Scenario Analysis, Investigation Copilot, Adjuster Assistance) are served by the single `POST /coverage/ask` endpoint — there are no distinct copilot services or endpoints.
 
 ## Policy Copilot
 

@@ -1,6 +1,7 @@
 package com.niyotechnologies.claimlens.product.controller;
 
 import com.niyotechnologies.claimlens.common.response.ApiResponse;
+import com.niyotechnologies.claimlens.common.util.SafeDownloads;
 import com.niyotechnologies.claimlens.product.dto.response.ProductDocumentResponse;
 import com.niyotechnologies.claimlens.product.service.ProductDocumentService;
 import com.niyotechnologies.claimlens.product.service.ProductDocumentService.DownloadedFile;
@@ -48,13 +49,6 @@ public class ProductDocumentController {
             @PathVariable Long versionId,
             @PathVariable Long documentId) {
         DownloadedFile doc = documentService.download(documentId);
-        MediaType contentType = doc.contentType() != null
-                ? MediaType.parseMediaType(doc.contentType())
-                : MediaType.APPLICATION_OCTET_STREAM;
-        return ResponseEntity.ok()
-                .contentType(contentType)
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        ContentDisposition.inline().filename(doc.fileName()).build().toString())
-                .body(doc.content());
+        return SafeDownloads.of(doc.content(), doc.fileName(), doc.contentType());
     }
 }

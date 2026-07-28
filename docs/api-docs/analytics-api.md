@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Concrete divergences are flagged inline as **As-built** notes.
+
 # 07.14 Analytics API
 
 ## Document Information
@@ -112,9 +114,13 @@ Benefits:
 | ANALYTICS_ADMIN  | Manage analytics jobs |
 | KPI_VIEW         | View KPI metrics      |
 
+**As-built (2026-07-29):** The analytics module ships exactly ONE endpoint — `GET /api/v1/analytics/dashboard` (permission `ANALYTICS_READ`), which computes an aggregated dashboard object on-request. There is no `analytics_snapshot`/`dashboard_metric` table and no scheduled aggregation worker. None of the snapshot, dashboard-metric, claims/fraud/investigation/investigator/SLA/branch/region/processing, export, or aggregation-admin endpoints in the sections below were built. The permission codes `ANALYTICS_VIEW`, `ANALYTICS_EXPORT`, `ANALYTICS_ADMIN`, and `KPI_VIEW` do not exist; the only analytics permission is `ANALYTICS_READ`.
+
 ---
 
 # 5. Analytics Snapshot APIs
+
+**As-built (2026-07-29):** Not built — see the module-wide note in §4. Sections 5 through 16 describe a design-era analytics surface that was never implemented; the shipped surface is the single `GET /api/v1/analytics/dashboard` endpoint.
 
 ---
 

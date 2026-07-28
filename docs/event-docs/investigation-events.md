@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; the authoritative behaviour is the code. Where this diverges, the code wins ([`../architecture.md`](../architecture.md), [`../domain-model.md`](../domain-model.md)); deltas flagged inline as **As-built** notes.
+
 # 08.5 Investigation Events
 
 ## Document Information
@@ -20,6 +22,8 @@
 This document defines all events produced by the Investigation Module.
 
 Investigation Events track the complete lifecycle of claim investigations.
+
+> **As-built (2026-07-29):** The rich investigation lifecycle described here was **not built**, and none of these events are emitted. There is no `Investigation` entity, no investigation number, and no tasks/reports/evidence — `InvestigationFinding` and `InvestigationEvidence` were dropped. In the code, "investigation" is simply a **claim in `UNDER_INVESTIGATION` status** after it is assigned to an investigator (a `claim_assignment` row); the investigator may add free-text `investigation_note` rows and then resolves the claim via `decide()` (APPROVE/REJECT) or `requestInformation()`. So `INVESTIGATION_CREATED/STARTED/STATUS_CHANGED/TASK_*/REPORT_SUBMITTED/COMPLETED/CLOSED` have no counterpart in the build.
 
 These events support:
 

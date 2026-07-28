@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; the authoritative behaviour is the code. Where this diverges, the code wins ([`../architecture.md`](../architecture.md), [`../domain-model.md`](../domain-model.md)); deltas flagged inline as **As-built** notes.
+
 # 08.6 Processing Events
 
 ## Document Information
@@ -38,6 +40,8 @@ Analysis Service
       ↓
 Fraud Module
 ```
+
+> **As-built (2026-07-29):** The pipeline is **real** but **not event-driven** — none of the `OCR_*`/`ANALYSIS_*`/`FRAUD_EVALUATION_QUEUED`/`CLAIM_PROCESSING_COMPLETED`/`PROCESSING_RECOVERED` events below are published. Instead: `ocr_job`, `analysis_job` and `fraud_job` are DB rows; a single `@Scheduled` poller (`ProcessingScheduler.tick()`, `fixedDelay` 3s, capped 50/tick) drains each queue by calling the worker's `pollOnce()`, and each worker claims a row with `FOR UPDATE SKIP LOCKED`. As OCR and analysis each complete, `ProcessingOrchestrator` flips that stage's status and calls the **fraud gate** `tryQueueFraud` — a single **atomic conditional UPDATE** on the one processing-state row that enqueues **at most one** fraud job only when both stages are COMPLETE (a partial-unique index on `fraud_job` backs this). This replaces the design's `FRAUD_EVALUATION_QUEUED` event and its "race-condition prevention" section. `FraudEngine.evaluate()` then runs synchronously in the fraud worker. The gate settles on a **TERMINAL** outcome (succeeded or retries-exhausted) so it can't hang. In integration tests the scheduler is disabled and `pollOnce()` is driven manually.
 
 ---
 
@@ -589,6 +593,8 @@ CLAIM_READY_FOR_ASSIGNMENT
 
 from earlier design.
 
+> **As-built (2026-07-29):** No `CLAIM_PROCESSING_COMPLETED` event is emitted. When fraud evaluation finishes, `ProcessingOrchestrator`/fraud worker simply advances the claim to `AWAITING_ASSIGNMENT`; assignment is then a synchronous, user-initiated (or auto-pick) action, not an event consumer.
+
 ---
 
 # 14. FRAUD_EVALUATION_QUEUED
@@ -763,6 +769,8 @@ PROCESSING
 ```
 
 jobs exceeding timeout thresholds.
+
+> **As-built (2026-07-29):** `FOR UPDATE SKIP LOCKED` claim-and-mark is real. There is **no separate recovery worker** resetting timed-out jobs and no `PROCESSING_RECOVERED` event; instead the fraud gate is designed to always settle on a **TERMINAL** state (succeeded or retries-exhausted) so a claim never gets stuck mid-pipeline.
 
 ---
 

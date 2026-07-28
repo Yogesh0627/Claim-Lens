@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built schema on 2026-07-29.** This is an iterative pre-implementation draft. The authoritative schema is the **Flyway migrations `V1__…V32__`** (backend/src/main/resources/db/migration) and [`../domain-model.md`](../domain-model.md). Where this draft diverges, the migrations win; key deltas are flagged inline as **As-built** notes.
+
 # Database Design Part 7 - Document Domain
 
 Status: Draft
@@ -62,6 +64,8 @@ Benefits:
 ---
 
 # Storage Strategy
+
+**As-built (2026-07-29):** `document` (V12) and `document_version` (V25) shipped as designed. Blob storage is **pluggable behind a `StorageProvider` interface** — S3/Cloudflare R2 under the prod profile, **local filesystem by default** in dev — so the hardcoded `s3_bucket`/`s3_object_key` framing is one backend among several. The OCR/AnalysisResult relationships listed as "Future" further down are in fact **built** (`ocr_result` V20, `analysis_result` V21).
 
 Files are NOT stored in PostgreSQL.
 
@@ -702,6 +706,8 @@ Versions Are Append-Only
 
 
 # Database Design Part 8 - Assignment Domain
+
+**As-built (2026-07-29):** this three-table design (`assignment` + `assignment_history` + `assignment_queue`) was **collapsed to a single `claim_assignment` table** (V13). There is no separate `assignment_history` or `assignment_queue` — queueing/worker-drain is handled by the processing-job tables (`ocr_job`/`analysis_job`/`fraud_job`, V14+) using `FOR UPDATE SKIP LOCKED`, and status transitions are recorded on the claim via `claim_status_history`. Read the tables below as design-era intent, not shipped DDL.
 
 Status: Draft
 

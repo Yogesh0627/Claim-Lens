@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; the authoritative behaviour is the code. Where this diverges, the code wins ([`../architecture.md`](../architecture.md), [`../domain-model.md`](../domain-model.md)); deltas flagged inline as **As-built** notes.
+
 # 08.1 Event Standards
 
 ## Document Information
@@ -18,6 +20,8 @@
 # 1. Overview
 
 This document defines the event-driven architecture standards used throughout ClaimLens.
+
+> **As-built (2026-07-29):** This document describes an intended event model that was **not built as specified**. There is **NO message broker (no Kafka/RabbitMQ/SNS) and NO outbox pattern**. The `com.niyotechnologies.claimlens.events` and `.outbox` packages exist but are **empty placeholders**; there is no `outbox_event` table (Flyway migrations V1–V32 contain none), no event envelope, no `correlationId`/`causationId`/`eventVersion`, no dead-letter queue, no consumer/publisher workers, and no Prometheus event metrics. What actually exists is three concrete mechanisms: (1) **async processing** via DB job tables (`ocr_job`/`analysis_job`/`fraud_job`) drained by a single `@Scheduled` poller (`processing/worker/ProcessingScheduler`) whose workers claim rows with `FOR UPDATE SKIP LOCKED`; (2) **notifications** written **synchronously, in-process** by `NotificationService` (an in-app `notification` row plus a best-effort email) — direct method calls from `ClaimServiceImpl`, not published events; (3) **audit** via an `@Auditable` AOP aspect (`audit/aspect/AuditAspect`) that writes an `audit_log` row synchronously after the method returns. Treat the "events" below as design-era topic names, not as anything the code emits.
 
 The objective is to establish a consistent and scalable event model that supports:
 
@@ -141,6 +145,8 @@ OUTBOX PATTERN
 
 for reliable event delivery.
 
+> **As-built (2026-07-29):** The outbox pattern was **not implemented**. No `outbox_event` table and no publisher worker exist. The dual-write concern it addresses is handled instead by keeping side effects **inside the same DB transaction** (e.g. `ProcessingOrchestrator.onClaimSubmitted` creates the processing-state and OCR/analysis job rows in the claim transaction; notifications are written synchronously). Async fan-out is polling of DB job tables, not event publication.
+
 ---
 
 ## Why Outbox Pattern
@@ -180,6 +186,8 @@ All events are first stored in:
 ```text
 audit.outbox_event
 ```
+
+> **As-built (2026-07-29):** No such table exists (not in migrations V1–V32). The columns below (`event_id`, `payload`, `status`, `retry_count`, `published_at`, …) were never created.
 
 Example Structure:
 
@@ -687,6 +695,8 @@ This structure must be followed for all Event Design documents.
 ---
 
 # 22. Future Kafka Migration
+
+> **As-built (2026-07-29):** Neither the "Current V1" outbox nor a Kafka migration was built. There is no broker and no outbox to migrate from. Kafka is not on the delivered stack.
 
 Current V1:
 

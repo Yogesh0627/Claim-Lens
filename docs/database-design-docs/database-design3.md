@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built schema on 2026-07-29.** This is an iterative pre-implementation draft. The authoritative schema is the **Flyway migrations `V1__…V32__`** (backend/src/main/resources/db/migration) and [`../domain-model.md`](../domain-model.md). Where this draft diverges, the migrations win; key deltas are flagged inline as **As-built** notes.
+
 # Database Design Part 5 - Policy Engine Domain
 
 Status: Draft
@@ -24,6 +26,8 @@ The Policy Engine drives:
 The goal is to allow Company Admins to modify business behavior without code changes.
 
 ---
+
+**As-built (2026-07-29):** this "Policy Engine" (a versioned `claim_type_policy` with child `required_document_policy`/`assignment_policy`/`fraud_policy`/`sla_policy`/`analysis_strategy` and a `document_type` catalog) was **NOT built as designed**. What shipped: `claim_type` exists; the insurance-contract side is modelled as `insurance_product` → `insurance_product_version` → `insurance_policy` (+ `product_document`, V29); config-driven fraud is **`fraud_ruleset` + `fraud_rule`** per (tenant, claim_type) with `medium_threshold`/`high_threshold` (V15). There is no separate SLA, assignment-policy, or analysis-strategy table. Treat the tables in this section as design-era only unless echoed by a migration.
 
 # Policy Hierarchy
 
@@ -352,6 +356,8 @@ claim_type_policy_id
 
 # Table: fraud_policy
 
+**As-built (2026-07-29):** there is **no `fraud_policy` table**. The shipped equivalent is **`fraud_ruleset`** (V15) — per (tenant, claim_type), with `name`, `medium_threshold` (default 25), `high_threshold` (default 50), and a `status` of DRAFT/ACTIVE/RETIRED (at most one ACTIVE per tenant+claim_type). The word "policy" is deliberately reserved for the insurance contract (`insurance_policy`), never for fraud config.
+
 Purpose:
 
 Controls fraud scoring thresholds.
@@ -397,6 +403,8 @@ claim_type_policy_id
 ---
 
 # Table: fraud_rule
+
+**As-built (2026-07-29):** `fraud_rule` exists (V15) but its parent FK is **`fraud_ruleset_id`** (→ `fraud_ruleset`), NOT `fraud_policy_id`. Columns: `code` (maps to a `FraudRuleEvaluator`, e.g. `AMOUNT_OVER_SUM_INSURED`), `description`, `weight`, `enabled` — no `rule_parameters` JSONB.
 
 Purpose:
 
@@ -818,6 +826,8 @@ CLM-2026-000003
 
 Claim Status Values
 
+**As-built (2026-07-29):** the `chk_claim_status` CHECK constraint (V11) has **11 values and includes `REOPENED`, NOT `CANCELLED`**: DRAFT, SUBMITTED, AWAITING_ANALYSIS, AWAITING_ASSIGNMENT, AWAITING_ACCEPTANCE, UNDER_INVESTIGATION, WAITING_FOR_CUSTOMER, APPROVED, REJECTED, CLOSED, REOPENED. Terminal = APPROVED|REJECTED|CLOSED; REOPENED is deliberately non-terminal.
+
 ```text
 DRAFT
 
@@ -885,6 +895,8 @@ ON claim(tenant_id, current_status);
 
 # Motor Claim Fields (V1)
 
+**As-built (2026-07-29):** vehicle data is NOT inlined as free `vehicle_make`/`vehicle_model`/`driver_*` columns. The `claim` table (V11) references an `insured_vehicle_id` FK (→ `insured_vehicle`) and keeps only **write-once snapshots** `policy_number` and `vehicle_registration_number` (stable even if the source record is later corrected). It also pins `insurance_product_version_id`. The status column is `status` (not `current_status`).
+
 Because V1 only supports:
 
 ```text
@@ -921,6 +933,8 @@ claim_type_specific tables
 ---
 
 # Table: claim_history
+
+**As-built (2026-07-29):** the shipped table is **`claim_status_history`** (V11, append-only) with columns `from_status`/`to_status`/`note`/`changed_by`/`changed_at`. The `claim_comment`, `claim_tag`, and `claim_tag_mapping` tables below were **NOT built** (investigator commentary lives in `investigation_note`, V16).
 
 Purpose:
 

@@ -126,6 +126,13 @@ ClaimLens helps insurance companies:
 * Duplicate image detection
 * Risk categorization
 
+## Coverage Assistant
+
+* Policy coverage Q&A grounded in the tenant's own policy documents (RAG)
+* Answers returned with source citations
+
+*As-built (2026-07-29): delivered via Gemini for chat + embeddings with pgvector retrieval; falls back to an offline stub when AI is disabled.*
+
 ## Investigation Workflow
 
 * Investigator assignment

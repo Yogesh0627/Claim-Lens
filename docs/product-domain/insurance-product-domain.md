@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Deltas flagged inline as **As-built** notes.
+
 # 14.1 Insurance Product Domain
 
 Status: Approved
@@ -129,6 +131,8 @@ InsuranceProductVersion
 
 ProductDocument
 ```
+
+**As-built (2026-07-29):** These three entities shipped as described (package `com.niyotechnologies.claimlens.product`). The actual insurance *contract* — `InsurancePolicy` and its `InsuredVehicle` — lives in the separate `policy` module and is what a claim is filed against; a policy references a product version, and that is where version pinning originates (see the Critical Business Rule note below).
 
 ---
 
@@ -363,6 +367,8 @@ Current Active Product Version
 ```
 
 Both identifiers must be persisted.
+
+**As-built (2026-07-29):** The pinned version comes from the **policy** the claim is filed under (the `InsurancePolicy`'s product version), **not** the product's currently-active version at claim time. This is what guarantees a claim keeps V2 even after V3 is activated — version pinning is anchored on the contract, not resolved live from the product.
 
 Example:
 

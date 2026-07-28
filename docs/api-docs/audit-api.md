@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Concrete divergences are flagged inline as **As-built** notes.
+
 # 07.15 Audit & Compliance API
 
 ## Document Information
@@ -106,9 +108,13 @@ Audit records are never deleted.
 | SECURITY_AUDIT_VIEW | View security events    |
 | AUDIT_ADMIN         | Audit administration    |
 
+**As-built (2026-07-29):** There is NO `/api/v1/audit/**` module. Audit records ARE written (immutable `audit_log` rows via a single `AuditLog` entity — the `audit_event`/`audit_log` two-table split was not built), but the only way to READ them over the API is per-claim: `GET /api/v1/claims/{id}/audit` (permission `AUDIT_READ`). None of the endpoints in sections 5–12 exist — no audit event/log lookup or search, entity-history, user-activity/timeline, security-event, compliance-reporting, audit-export, or audit-dashboard endpoints. The only audit permission code is `AUDIT_READ`; `AUDIT_VIEW`, `AUDIT_EXPORT`, `COMPLIANCE_VIEW`, `SECURITY_AUDIT_VIEW`, and `AUDIT_ADMIN` do not exist.
+
 ---
 
 # 5. Audit Event APIs
+
+**As-built (2026-07-29):** Not built as a standalone module — see the note in §4. Sections 5–12 describe a design-era audit API surface that was never implemented; the shipped read surface is `GET /api/v1/claims/{id}/audit` (`AUDIT_READ`).
 
 ---
 

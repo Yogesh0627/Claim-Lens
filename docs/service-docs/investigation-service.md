@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; the authoritative behaviour is the service code. Where this diverges, the code wins ([`../architecture.md`](../architecture.md), [`../domain-model.md`](../domain-model.md), [`../audit-report.md`](../audit-report.md)); deltas flagged inline as **As-built** notes.
+
 # 09.5 Investigation Service Design
 
 ## Document Information
@@ -30,6 +32,8 @@ Responsibilities:
 * Fraud Review Support
 
 The Investigation Module serves as the primary workspace for investigators.
+
+**As-built (2026-07-29):** the module was reduced to a **single append-only `InvestigationNote`**. There is **no** `Investigation` aggregate, `InvestigationTask`, `InvestigationReport`, `InvestigationFinding` or `InvestigationEvidence` entity (all dropped), no investigation status lifecycle, and no `InvestigationController` — notes are served under the claim at **`POST/GET /claims/{id}/investigation-notes`**. `addNote` (`CLAIM_INVESTIGATE`) requires the claim to be **UNDER_INVESTIGATION or WAITING_FOR_CUSTOMER**; `listNotes` uses `CLAIM_READ`. The investigation state a claim moves through is carried by the **claim status** itself, not a separate Investigation entity.
 
 ---
 
@@ -165,6 +169,8 @@ POST   /investigations/{investigationId}/complete
 
 POST   /investigations/{investigationId}/close
 ```
+
+**As-built (2026-07-29):** the entire `/investigations` surface was **not built**. Only two endpoints exist, both nested under the claim: `POST /claims/{id}/investigation-notes` (`CLAIM_INVESTIGATE`) and `GET /claims/{id}/investigation-notes` (`CLAIM_READ`). Sections §6–§8, §10, §12, §14, §15 (tasks, reports, status lifecycle, task/report services) therefore describe unbuilt behaviour.
 
 ---
 
@@ -487,6 +493,8 @@ Cannot Delete
 Fully Auditable
 ```
 
+**As-built (2026-07-29):** accurate — notes are insert-only (`InvestigationNote`). Each note carries `noteType`, free-text `note`, optional `severity`, and an optional linked `documentId`; creation is audited via `@Auditable(action="INVESTIGATION_NOTE_ADDED")`.
+
 ---
 
 # 14. Investigation Task Strategy
@@ -670,6 +678,8 @@ INVESTIGATION_COMPLETE
 
 INVESTIGATION_CLOSE
 ```
+
+**As-built (2026-07-29):** no `INVESTIGATION_*` permissions exist. Adding a note requires **`CLAIM_INVESTIGATE`**, reading requires **`CLAIM_READ`**, enforced via `@PreAuthorize` on the impl. Tenant isolation is automatic via `@TenantId`.
 
 ---
 

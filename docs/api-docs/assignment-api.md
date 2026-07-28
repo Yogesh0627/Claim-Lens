@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Concrete divergences are flagged inline as **As-built** notes.
+
 # 07.8 Assignment Management API
 
 ## Document Information
@@ -120,6 +122,13 @@ CANCELLED
 | ASSIGNMENT_REASSIGN     | Reassign claims       |
 | ASSIGNMENT_QUEUE_VIEW   | View assignment queue |
 | ASSIGNMENT_QUEUE_MANAGE | Manage queue          |
+
+**As-built (2026-07-29):** There is NO standalone `/assignments` or `/assignment-queue` resource. Assignment is performed through claim sub-resources, all guarded by the single permission `CLAIM_ASSIGN` (the `ASSIGNMENT_*` permission codes do not exist):
+> - `POST /api/v1/claims/{id}/assign` — manual assignment
+> - `POST /api/v1/claims/{id}/auto-assign` — trigger the assignment engine for one claim
+> - `POST /api/v1/claims/{id}/reassign` — reassign to a new investigator
+>
+> None of the following design-era endpoints were built: get/list assignments, bulk auto-assign, the assignment queue APIs (get/requeue/remove), accept/reject (`PATCH …/accept|reject`), bulk-reassign, assignment history, workload/available-investigators, assignment statistics, and effective-assignment-policy. Queued claims are drained by an internal `@Scheduled` worker using `FOR UPDATE SKIP LOCKED`; there is no external queue-management API.
 
 ---
 

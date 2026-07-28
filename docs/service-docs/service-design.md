@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; the authoritative behaviour is the service code. Where this diverges, the code wins ([`../architecture.md`](../architecture.md), [`../domain-model.md`](../domain-model.md), [`../audit-report.md`](../audit-report.md)); deltas flagged inline as **As-built** notes.
+
 # 09.1 Service Design Standards
 
 ## Document Information
@@ -50,6 +52,8 @@ Redis
 Docker
 AWS S3
 ```
+
+**As-built (2026-07-29):** Spring Boot **4**, Spring Security **7**, Spring Data JPA / Hibernate **7**, Flyway (V1–V32), PostgreSQL **17**, Java 21. Redis (Upstash) is prod-only — dev uses Caffeine / in-memory. Object storage is behind a `DocumentStorage` interface: S3 / Cloudflare R2 in prod, local filesystem by default. Root package is `com.niyotechnologies.claimlens` (not `com.Niyo.claimlens`).
 
 Supporting Services:
 
@@ -478,6 +482,8 @@ ClaimLens uses:
 Outbox Pattern
 ```
 
+**As-built (2026-07-29):** The Outbox Pattern was **not built**. The `outbox` and `events` packages contain no code, and there is no `outbox_event` table or async publisher/consumer. Cross-module effects that the design routes through events — notifications, audit — are instead **direct synchronous service-to-service calls inside the same `@Transactional` boundary** (e.g. `ClaimServiceImpl` calls `NotificationService` and `AuditService` directly; audit uses `Propagation.REQUIRED` so a rolled-back action leaves no audit row). The per-module `event`/`validator`/`specification`/`exception` sub-packages shown in §4 are largely absent; most modules are `controller` + `service`(+`impl`) + `repository` + `entity` + `dto` + `mapper`.
+
 ---
 
 ## Rule
@@ -588,6 +594,8 @@ Global Handler:
 GlobalExceptionHandler
 ```
 
+**As-built (2026-07-29):** the class is named `GlobalHandlerException` (`common/exception`). Post-audit it also maps 405 (bad verb), 415 (bad Content-Type) and 413 (oversize upload) explicitly (previously 500s).
+
 ---
 
 ## Exception Types
@@ -678,6 +686,8 @@ tenant_id
 
 before data access.
 
+**As-built (2026-07-29):** tenant isolation is **automatic**, not hand-coded. Tenant-scoped entities carry a Hibernate `@TenantId` discriminator (`TenantAwareEntity`); services never filter by `tenant_id` and there are no `{companyId}` path params — the tenant comes from the JWT. A cross-tenant id simply isn't found → **404** (no existence oracle). Authorization (RBAC) is enforced at the **service layer** via `@PreAuthorize("hasAuthority('CODE')")` on the impl methods, resolving permissions server-side per request from `role_permission` (+ per-tenant overrides).
+
 ---
 
 # 17. Auditing Standards
@@ -691,6 +701,8 @@ Audit Log
 ```
 
 through the Audit Module.
+
+**As-built (2026-07-29):** auditing is driven by an `@Auditable` AOP aspect (`audit/aspect/AuditAspect`) that calls `AuditService.record(...)` synchronously within the same business transaction — there is a single `AuditLog` entity (no separate `AuditEvent`), and no event/outbox hop. Only selected actions are annotated (e.g. claim submit/assign/decide, investigation note), not literally every write.
 
 ---
 

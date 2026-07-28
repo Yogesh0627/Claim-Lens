@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Deltas flagged inline as **As-built** notes.
+
 # 15.2 Database Design Part 15 – Policy Intelligence Domain
 
 Status: Approved
@@ -36,6 +38,8 @@ Dedicated Schema:
 ```sql
 policy_ai
 ```
+
+**As-built (2026-07-29):** The RAG tables shipped in migration **V22 (`policy_ai_tables`)** as part of the `coverage` module. Only **three** tables/entities were built — `policy_chunk` (`PolicyChunk`), plus `coverage_answer` (`CoverageAnswer`) and `coverage_citation` (`CoverageCitation`). The `policy_embedding`, `policy_chat_session`, `policy_chat_message`, `policy_question`, `policy_answer`, `policy_answer_citation`, and `coverage_question_log` tables below were **not built**. Embeddings are not a separate table: when `PGVECTOR_ENABLED=true` a pgvector column with an HNSW index is used; otherwise chunk text is stored and cosine similarity is computed in Java. Offline stub embeddings are 256-dim hashes (not `VECTOR(768)`).
 
 Purpose:
 
@@ -152,6 +156,8 @@ ON policy_ai.policy_chunk(product_document_id);
 
 # Table: policy_embedding
 
+**As-built (2026-07-29):** No standalone `policy_embedding` table. See the Schema Strategy note — embeddings live in a pgvector column (HNSW index) when enabled, else similarity is computed in-Java over stored chunk text.
+
 Purpose:
 
 Stores vector embeddings used for semantic search.
@@ -203,6 +209,8 @@ ON policy_ai.policy_embedding
 USING ivfflat (embedding_vector vector_cosine_ops);
 ```
 
+**As-built (2026-07-29):** The shipped vector index is **HNSW** (pgvector) on the chunk embedding, gated by `PGVECTOR_ENABLED`, not `ivfflat` on a separate embedding table.
+
 ---
 
 Purpose
@@ -220,6 +228,8 @@ RAG Retrieval
 ---
 
 # Table: policy_chat_session
+
+**As-built (2026-07-29):** Not built — coverage Q&A is stateless. The `policy_chat_session`, `policy_chat_message`, `policy_question`, `policy_answer`, `policy_answer_citation`, and `coverage_question_log` tables that follow do not exist. Answers and their sources are persisted as `coverage_answer` + `coverage_citation` instead.
 
 Purpose:
 
@@ -701,6 +711,8 @@ policy_answer_citation
 
 coverage_question_log
 ```
+
+**As-built (2026-07-29):** Actual tables (V22): `policy_chunk`, `coverage_answer`, `coverage_citation` only.
 
 Vector Database
 

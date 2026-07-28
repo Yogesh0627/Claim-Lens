@@ -35,6 +35,8 @@ Database equivalent:
 
 tenant_id UUID NOT NULL REFERENCES insurance_company(id)
 
+**As-built (2026-07-29):** primary keys and `tenant_id` are BIGINT identity (`Long`), not UUID. Tenancy is enforced at the ORM layer via Hibernate `@TenantId` on `TenantAwareEntity` (appended to every SELECT/UPDATE/DELETE including load-by-id), rather than by an application-supplied UUID. Aggregates that are exposed externally carry a separate opaque `public_id UUID` (e.g. `claim.public_id`) so the internal BIGINT is never leaked.
+
 Exceptions:
 - ServiceHealth
 - SystemMetric
@@ -74,6 +76,8 @@ Applied To:
 - FraudRule
 - NotificationTemplate
 
+**As-built (2026-07-29):** the soft-delete columns (`is_deleted`, `deleted_at`, `deleted_by`) live on the shared `BaseEntity`, so every entity extending it inherits them — the list above is the set that actually exercises soft delete, not a schema restriction. Standalone append-only/infrastructure entities (`AuditLog`, `Notification`, `UserSession`) deliberately do NOT extend `BaseEntity` and have no soft-delete switch. Separately, a tenant (`InsuranceCompany`) can be retired via an `ARCHIVED` status (distinct from a soft delete) — see `InsuranceCompanyStatus`.
+
 ---
 
 ## Immutable Entities
@@ -89,6 +93,8 @@ Append Only:
 
 No Updates
 No Deletes
+
+**As-built (2026-07-29):** the realized append-only tables are `ClaimStatusHistory` (design "ClaimHistory"), `OcrResult`, `FraudScore`, and `AuditLog`. There is no separate `AuditEvent` entity — event + change detail collapsed into the single `AuditLog`. `AnalyticsSnapshot` and a persisted `AssignmentHistory` table were not built (see the respective domain notes below).
 
 ---
 
@@ -143,6 +149,13 @@ Audit Aggregate
 - AuditEvent
 - AuditLog
 - AuditAttachment
+
+**As-built (2026-07-29):** the aggregate map above is the design intent; several members were consolidated or not built in V1. Key deltas (detailed in each domain section below):
+- **Policy Aggregate** — realized as `ClaimType` plus a fraud `FraudRuleset` + `FraudRule` pair under the `ruleset` module. `ClaimTypePolicy`, `RequiredDocumentPolicy`, `AssignmentPolicy`, `FraudPolicy`, `SLAPolicy`, and `AnalysisStrategy` were not built as separate tables.
+- **Claim Aggregate** — `Claim` + `ClaimStatusHistory` only; `ClaimComment` and `ClaimTag` were not built.
+- **Investigation Aggregate** — collapsed to a single `InvestigationNote`. `Investigation`, `InvestigationTask`, `InvestigationFinding`, `InvestigationEvidence`, and `InvestigationReport` were not built (evidence is absorbed by `InvestigationNote.documentId`).
+- **Fraud Aggregate** — realized as `FraudScore` (+ `FraudJob`, `FraudRuleset`/`FraudRule`). `FraudCase` and `FraudAlert` were **dropped / not built**.
+- **Audit Aggregate** — a single `AuditLog`. `AuditEvent` and `AuditAttachment` were **dropped / not built**.
 
 ---
 
@@ -225,6 +238,8 @@ RolePermission
 - permissionId
 - createdAt
 
+**As-built (2026-07-29):** Roles and permissions are global (not tenant-scoped); the base role→permission grants live in the global `role_permission` table. A per-tenant override table `tenant_role_permission` (migration V30) lets a tenant add/remove specific permissions on a role without forking the global role set. `Permission` is a seeded reference table rather than a mapped JPA aggregate. Resolved permissions are cached (Caffeine dev / Redis prod).
+
 ---
 
 # 3. User Domain
@@ -282,9 +297,13 @@ UserBranchAssignment
 - status
 - createdAt
 
+**As-built (2026-07-29):** the mapped entity is `AppUser` (table `app_user`); `region_id` is present as designed. Auth/session state is split into two standalone (non-tenant-aware) entities added later: `UserSession` (V6/rotating refresh-token sessions, SHA-256 token hash at rest) and `UserInvitation` (V27, invite/reset tokens, SHA-256 at rest, single-use, TTL).
+
 ---
 
 # 4. Policy Engine Domain
+
+**As-built (2026-07-29):** of this domain, only `ClaimType` and the fraud rules were built. Fraud rules were named `FraudRuleset` + `FraudRule` (module `ruleset`, permission codes `RULESET_READ/WRITE`), **not** `FraudPolicy` + `FraudRule`. `FraudRuleset` holds `claimTypeId`, `name`, `mediumThreshold`, `highThreshold`, `status` (one ACTIVE ruleset per tenant+claim type); `FraudRule` holds the per-rule weight/parameters. `ClaimTypePolicy`, `DocumentType`, `RequiredDocumentPolicy`, `AssignmentPolicy`, `FraudPolicy`, `SLAPolicy`, and `AnalysisStrategy` were **not** built as separate tables in V1.
 
 ClaimType
 - id
@@ -420,6 +439,8 @@ Claim
 - createdAt
 - updatedAt
 
+**As-built (2026-07-29):** `Claim` carries `public_id` (opaque UUID), the pinned product lineage (`insurance_policy_id`, `insured_vehicle_id`, `insurance_product_id`, `insurance_product_version_id`, `claim_type_id`), write-once intake snapshots (`policy_number`, `vehicle_registration_number`), and `fraud_confirmed` (nullable ground-truth label set at decision time, migration V32, feeds fraud-model evaluation). It does not carry `claimTypePolicyId`, `riskLevel`, `fraudScore`, or `currentInvestigatorId` — risk/score live on `FraudScore`, and assignment lives on `ClaimAssignment`. `reopenedAt` is present (the `ClaimStatus` enum includes `REOPENED`).
+
 ClaimHistory
 - id
 - tenantId
@@ -484,6 +505,8 @@ DocumentVersion
 
 # 7. Assignment Domain
 
+**As-built (2026-07-29):** realized as a single `ClaimAssignment` entity. Separate `AssignmentHistory` and `AssignmentQueue` tables were not built; the processing pipeline uses the `processing` job tables plus `ClaimProcessingState` instead of a dedicated assignment queue.
+
 Assignment
 - id
 - tenantId
@@ -518,6 +541,8 @@ AssignmentQueue
 ---
 
 # 8. Investigation Domain
+
+**As-built (2026-07-29):** the entire domain collapsed to a single `InvestigationNote` entity (`claimId`, `noteType`, `note`, `severity`, optional `documentId` for evidence). `Investigation`, `InvestigationTask`, `InvestigationFinding`, `InvestigationEvidence`, and `InvestigationReport` were **not built** — `InvestigationFinding` and `InvestigationEvidence` were explicitly dropped.
 
 Investigation
 - id
@@ -576,6 +601,8 @@ InvestigationReport
 
 # 9. OCR Domain
 
+**As-built (2026-07-29):** realized as `OcrJob` + `OcrResult` (module `processing`). There is no separate `OCRFieldExtraction` entity. Image analysis runs alongside OCR as `AnalysisJob` + `AnalysisResult`, and the whole pipeline is coordinated by `ProcessingJob`, `FraudJob`, and `ClaimProcessingState`.
+
 OCRJob
 - id
 - tenantId
@@ -614,6 +641,8 @@ OCRFieldExtraction
 ---
 
 # 10. Fraud Domain
+
+**As-built (2026-07-29):** realized as `FraudScore` (weighted-rule score 0-100 → LOW/MEDIUM/HIGH, explainable), plus `FraudJob` (pipeline gate) and the `FraudRuleset`/`FraudRule` config (see Policy Engine note). `FraudCase` and `FraudAlert` were **dropped / not built**.
 
 FraudCase
 - id
@@ -655,6 +684,8 @@ FraudAlert
 
 # 11. Notification Domain
 
+**As-built (2026-07-29):** realized as a single `Notification` entity (`recipientUserId`, `type`, `title`, `message`, `isRead`, `createdAt`). Separate `NotificationTemplate` and `NotificationDelivery` tables were not built; outbound email is sent **synchronously** through the pluggable `EmailSender` provider (Resend/SMTP/Log), called in-process at each claim event — not via an outbox/event bus (the `outbox`/`events` packages are empty placeholders) and not from persisted template/delivery rows.
+
 NotificationTemplate
 - id
 - tenantId
@@ -694,6 +725,8 @@ NotificationDelivery
 ---
 
 # 12. Analytics Domain
+
+**As-built (2026-07-29):** none of these were built as persisted tables in V1. The `analytics` module computes metrics on read (guarded by `ANALYTICS_READ`); `ReportDefinition`, `ReportExecution`, `DashboardMetric`, and `AnalyticsSnapshot` do not exist as entities.
 
 ReportDefinition
 - id
@@ -739,6 +772,8 @@ AnalyticsSnapshot
 
 # 13. Audit Domain
 
+**As-built (2026-07-29):** realized as a single append-only `AuditLog` (`tenantId`, `userId`, `action`, `entityType`, `entityId`, `details`, `createdAt`), written from an audit aspect. `AuditEvent` and `AuditAttachment` were **dropped / not built** — event and change detail collapsed into `AuditLog`.
+
 AuditEvent
 - id
 - tenantId
@@ -768,6 +803,8 @@ AuditAttachment
 ---
 
 # 14. Observability Domain
+
+**As-built (2026-07-29):** not modeled as database tables. `ServiceHealth`, `SystemMetric`, `ErrorLog`, `AlertRule`, and `AlertEvent` do not exist as entities; health is a live endpoint (`HealthController`) and observability is handled operationally (logs / platform tooling), not persisted domain rows.
 
 ServiceHealth
 - id
@@ -829,6 +866,8 @@ Status Lifecycle:
 - FraudCase
 - Assignment
 
+**As-built (2026-07-29):** the status-lifecycle entities that shipped are `Claim` and `ClaimAssignment`; `Investigation` and `FraudCase` were not built (see domain notes). Because the soft-delete columns sit on `BaseEntity`, soft delete is available to every business aggregate, not only the entities named above.
+
 Permanent Records:
 - AuditEvent
 - AuditLog
@@ -854,6 +893,8 @@ Ready For:
 - Service Boundaries
 - API Contracts
 - High Level Design
+
+**As-built (2026-07-29):** list APIs use a shared envelope `PagedResponse<T>` `{content, page, size, totalElements, totalPages, first, last}` (helper `PageRequests` clamps page ≥ 0 and size to 1..100). Paginated endpoints: `GET /claims`, `/customers`, `/users`, `/policies` (`?page&size`), each with a sibling unpaged `/options` endpoint for pickers/dropdowns.
 
 
 
@@ -1100,6 +1141,8 @@ ProductDocument
         ↓
 ProductKnowledgeBase
 ```
+
+**As-built (2026-07-29):** the "ProductKnowledgeBase" concept was realized as three concrete entities in the `coverage` module: `PolicyChunk` (embedded, searchable chunks of a product version's documents — pgvector HNSW when enabled, else in-Java cosine), plus `CoverageAnswer` and `CoverageCitation` which log each RAG coverage Q&A and its source citations. `ProductDocument` and `DocumentVersion` were built as designed. There is no single entity literally named `ProductKnowledgeBase`.
 
 ---
 

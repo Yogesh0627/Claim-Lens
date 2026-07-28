@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Deltas flagged inline as **As-built** notes.
+
 # 14.2 Database Design Part 14 – Insurance Product Domain
 
 Status: Approved
@@ -86,6 +88,8 @@ Insurance Product Version
         ↓
 Product Documents
 ```
+
+**As-built (2026-07-29):** `insurance_product` and `insurance_product_version` shipped in migration **V9 (`product_tables`)**; `product_document` shipped later in **V29 (`product_document_tables`)**. All three are tenant-scoped via Hibernate `@TenantId` (they extend `TenantAwareEntity`) rather than a hand-written `tenant_id` FK filter — column names/constraints below are close but treat the entity classes and migrations as authoritative.
 
 ---
 
@@ -392,6 +396,8 @@ ON product_document(document_type);
 ---
 
 # Claim Table Changes
+
+**As-built (2026-07-29):** Version pinning is anchored on the **policy** (`InsurancePolicy` → product version), not on a live lookup of the product's active version. The claim is filed under a policy, and that policy fixes the product version — so a claim keeps V2 even after V3 is activated. Confirm the exact claim-table columns against the `claim` module entities/migrations (V11 `claim_tables`).
 
 Purpose:
 

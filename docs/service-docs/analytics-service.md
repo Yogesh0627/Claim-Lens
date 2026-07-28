@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; the authoritative behaviour is the service code. Where this diverges, the code wins ([`../architecture.md`](../architecture.md), [`../domain-model.md`](../domain-model.md), [`../audit-report.md`](../audit-report.md)); deltas flagged inline as **As-built** notes.
+
 # 09.9 Analytics Service Design
 
 ## Document Information
@@ -30,6 +32,8 @@ Responsibilities:
 * Executive Reporting
 
 The Analytics Module is a read-only consumer of business events.
+
+**As-built (2026-07-29):** reduced to a single **`DashboardService.getDashboard()`** that computes **live aggregates on demand** (claims grouped by status + fraud scores grouped by risk level) — it is **not** an event consumer and stores nothing. `AnalyticsSnapshot`, `DashboardMetric` and `ReportExportJob` entities were **dropped** (no `KpiService`, `SnapshotService`, `ReportExportService`, snapshot/export workers, or CSV/XLSX/PDF exports). Tenant scoping is automatic via `@TenantId` (the fraud query passes the tenant explicitly to a grouped count).
 
 ---
 
@@ -374,6 +378,8 @@ POST /analytics/exports
 GET  /analytics/exports/{jobId}
 ```
 
+**As-built (2026-07-29):** the only endpoint is **`GET /analytics/dashboard`** (`ANALYTICS_READ`), returning `{claimsByStatus, fraudRiskDistribution}`. The fraud/investigations/operations/kpis/exports endpoints were not built. (Separately, platform-admin totals are served by `GET /platform/analytics` under `PLATFORM_ADMIN`.)
+
 ---
 
 # 11. DTO Design
@@ -673,6 +679,8 @@ ANALYTICS_VIEW
 
 ANALYTICS_EXPORT
 ```
+
+**As-built (2026-07-29):** the real code is **`ANALYTICS_READ`** (via `@PreAuthorize` on `getDashboard`); there is no export permission because exports were not built. §13/§14/§17 (event-driven updates, snapshot workflow, outbox) do not apply — the dashboard is computed live per request.
 
 ---
 

@@ -1,4 +1,8 @@
+> **⚠️ Design-era document — reconciled against the as-built schema on 2026-07-29.** This is an iterative pre-implementation draft. The authoritative schema is the **Flyway migrations `V1__…V32__`** (backend/src/main/resources/db/migration) and [`../domain-model.md`](../domain-model.md). Where this draft diverges, the migrations win; key deltas are flagged inline as **As-built** notes.
+
 # Database Design Part 9 - Investigation Domain
+
+**As-built (2026-07-29):** the entire investigation domain was **collapsed to a single `investigation_note` table** (V16). There is NO `investigation`, `investigation_report`, or `investigation_task` table (and no `investigation_finding`/`investigation_evidence`). `investigation_note` carries `claim_id` directly (not an `investigation_id`), plus `note_type` (FRAUD_OBSERVATION, SITE_VISIT, CUSTOMER_INTERACTION, MANAGER_REVIEW, ESCALATION, GENERAL), `note`, an optional `severity` (LOW/MEDIUM/HIGH), and an optional `document_id` FK. Investigation lifecycle state is tracked by the claim's `status` + `claim_status_history`, not a dedicated investigation row.
 
 Status: Draft
 
@@ -669,6 +673,8 @@ YES
 
 
 # Database Design Part 10 - OCR & Processing Domain
+
+**As-built (2026-07-29):** these tables live in the single **`public` schema**, NOT a separate `processing` schema (drop the `processing.` prefix everywhere below). Built: `claim_processing_state` (V14), the job tables `ocr_job`/`analysis_job`/`fraud_job` (V14; there is also a `fraud_job` gate not shown here), `ocr_result` (V20), `analysis_result` (V21). **`ocr_field_extraction` was NOT built** — extracted text/fields live inside `ocr_result`. OCR itself is pluggable (Google Vision / Python service / NoOp) and image analysis runs against a Python FastAPI service (or NoOp).
 
 Status: Draft
 

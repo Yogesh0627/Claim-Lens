@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; where it diverges from the shipped code the authoritative sources win: [`../domain-model.md`](../domain-model.md), [`../architecture.md`](../architecture.md), [`../audit-report.md`](../audit-report.md), and the running API. Concrete divergences are flagged inline as **As-built** notes.
+
 # 07.3 Organization Management API
 
 ## Document Information
@@ -38,6 +40,13 @@ This module provides APIs for:
 * Branch Assignment Support
 * Search & Filtering
 
+**As-built (2026-07-29):** several cross-cutting facts differ from this doc:
+> - **Tenant comes from the JWT** — there is **no `{companyId}` path variable** anywhere. Region/branch requests do not carry a `companyId` in body or path; the tenant is resolved server-side from the token.
+> - **Branches are nested under region**: `POST/GET/PUT/DELETE /organizations/regions/{rid}/branches[/{bid}]`, plus a flat list `GET /organizations/branches`. There is no top-level `POST /organizations/branches`.
+> - **Company lookups** use `GET /organizations/companies/me` (the caller's own tenant) and `GET /organizations/companies/{id}`; there is **no `/hierarchy` and no `/search` endpoint** (sections 7 are not built).
+> - The module also ships **Departments** (`/organizations/departments`) and **Designations** (`/organizations/designations`) — not covered by this design doc.
+> - Cross-tenant access returns **404**, not 403 (see section 12 correction).
+
 ---
 
 # 2. Domain Entities
@@ -70,6 +79,8 @@ user_branch_assignment
 | ORGANIZATION_UPDATE | Update organization entities      |
 | ORGANIZATION_DELETE | Soft delete organization entities |
 
+**As-built (2026-07-29):** these coarse `ORGANIZATION_*` permissions do not exist. Authorization is **per entity type**: `ORG_COMPANY_{READ,WRITE}`, `ORG_REGION_{READ,WRITE}`, `ORG_BRANCH_{READ,WRITE}`, `ORG_DEPARTMENT_{READ,WRITE}`, `ORG_DESIGNATION_{READ,WRITE}`. Additionally, **company create/list/delete require `PLATFORM_ADMIN`** (tenant provisioning), while company read/update use `ORG_COMPANY_READ`/`ORG_COMPANY_WRITE`.
+
 ---
 
 # 4. Insurance Company APIs
@@ -93,6 +104,8 @@ Create a new insurance company tenant.
 ```text
 ORGANIZATION_CREATE
 ```
+
+**As-built (2026-07-29):** `POST /organizations/companies` requires **`PLATFORM_ADMIN`** (this is tenant provisioning), not `ORGANIZATION_CREATE`.
 
 ### Request Body
 
@@ -145,6 +158,8 @@ INSURANCE_COMPANY_CREATED
 GET /api/v1/organizations/companies/{companyId}
 ```
 
+**As-built (2026-07-29):** the path variable is `{id}` (`GET /organizations/companies/{id}`, `ORG_COMPANY_READ`). To fetch the caller's own tenant without knowing its id, use **`GET /organizations/companies/me`** (`ORG_COMPANY_READ`).
+
 ### Permissions
 
 ```text
@@ -174,6 +189,8 @@ ORGANIZATION_VIEW
 ```http
 PUT /api/v1/organizations/companies/{companyId}
 ```
+
+**As-built (2026-07-29):** path is `{id}`; requires `ORG_COMPANY_WRITE`.
 
 ### Request Body
 
@@ -209,6 +226,8 @@ INSURANCE_COMPANY_UPDATED
 DELETE /api/v1/organizations/companies/{companyId}
 ```
 
+**As-built (2026-07-29):** path is `{id}`; requires **`PLATFORM_ADMIN`**.
+
 ### Description
 
 Soft delete insurance company.
@@ -234,6 +253,8 @@ INSURANCE_COMPANY_DELETED
 ```http
 GET /api/v1/organizations/companies
 ```
+
+**As-built (2026-07-29):** listing all companies requires **`PLATFORM_ADMIN`** (a tenant admin sees only their own tenant via `/companies/me`).
 
 ### Query Parameters
 
@@ -276,6 +297,8 @@ GET /api/v1/organizations/companies
 ```http
 POST /api/v1/organizations/regions
 ```
+
+**As-built (2026-07-29):** requires `ORG_REGION_WRITE`. The request body has **no `companyId`** — the tenant is taken from the JWT.
 
 ### Request Body
 
@@ -397,6 +420,8 @@ REGION_DELETED
 GET /api/v1/organizations/regions
 ```
 
+**As-built (2026-07-29):** `ORG_REGION_READ`; the list is already tenant-scoped from the JWT, so there is **no `companyId` filter**.
+
 ### Query Parameters
 
 ```text
@@ -426,6 +451,8 @@ GET /api/v1/organizations/regions?companyId=101
 ```http
 POST /api/v1/organizations/branches
 ```
+
+**As-built (2026-07-29):** branches are created **nested under their region**: `POST /organizations/regions/{rid}/branches` (`ORG_BRANCH_WRITE`), with the region id in the path (not a `regionId` field). The same nesting applies to get/update/delete: `/organizations/regions/{rid}/branches/{bid}`.
 
 ### Request Body
 
@@ -475,6 +502,8 @@ BRANCH_CREATED
 ```http
 GET /api/v1/organizations/branches/{branchId}
 ```
+
+**As-built (2026-07-29):** a single branch is fetched via its region: `GET /organizations/regions/{rid}/branches/{bid}` (`ORG_BRANCH_READ`).
 
 ### Success Response
 
@@ -555,6 +584,8 @@ BRANCH_DELETED
 GET /api/v1/organizations/branches
 ```
 
+**As-built (2026-07-29):** this flat tenant-wide branch list **is** built (`ORG_BRANCH_READ`) and is the one branch endpoint not nested under a region. It returns all branches for the caller's tenant (no `companyId` filter — tenant is from the JWT).
+
 ### Query Parameters
 
 ```text
@@ -577,6 +608,8 @@ GET /api/v1/organizations/branches?regionId=201
 ---
 
 # 7. Organization Hierarchy APIs
+
+**As-built (2026-07-29):** not built. There is **no `/organizations/companies/{companyId}/hierarchy`** endpoint and **no `/organizations/search`** endpoint. Clients assemble hierarchy from the separate region/branch/department/designation list endpoints.
 
 ---
 
@@ -739,6 +772,8 @@ Cross-tenant access is prohibited and must return:
 ```http
 403 Forbidden
 ```
+
+**As-built (2026-07-29):** cross-tenant access by direct id returns **404 Not Found**, not 403 — the tenant discriminator hides the row entirely, so there is no existence oracle. (403 is reserved for an authenticated caller lacking the required permission on an in-tenant resource.)
 
 ---
 

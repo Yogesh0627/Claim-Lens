@@ -1,3 +1,7 @@
+> **⚠️ SUPERSEDED (2026-07-29).** This is an earlier snapshot of the domain model. The authoritative, as-built domain model is **[domain-model.md](./domain-model.md)**. Kept for history; do not rely on it for current entity/enum/table definitions.
+
+---
+
 # ClaimLens - Complete Domain Model
 
 Status: Frozen

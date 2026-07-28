@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; the authoritative behaviour is the code. Where this diverges, the code wins ([`../architecture.md`](../architecture.md), [`../domain-model.md`](../domain-model.md)); deltas flagged inline as **As-built** notes.
+
 # 08.4 Assignment Events
 
 ## Document Information
@@ -37,6 +39,8 @@ Assignment
         ↓
 Investigation
 ```
+
+> **As-built (2026-07-29):** No assignment events are emitted, and there is **no assignment-queue entity** (`AssignmentQueue` was dropped) — so `ASSIGNMENT_QUEUE_ENTERED/EXITED`, `ASSIGNMENT_ACCEPTED/REJECTED`, `ASSIGNMENT_ESCALATED` and SLA handling do not exist. What exists: after processing a claim sits at `AWAITING_ASSIGNMENT`; a `CLAIM_ASSIGN`-permitted user calls `assign` (specific investigator) or `autoAssign` (`AssignmentEngine` picks the least-loaded eligible investigator in the tenant), creating a `claim_assignment` row and moving the claim to `UNDER_INVESTIGATION`. `reassign` retires the live assignment(s) and creates a new one. Each of these writes an in-app notification of type `CLAIM_ASSIGNED` synchronously (there is **no distinct `CLAIM_REASSIGNED` event** — reassignment reuses the `CLAIM_ASSIGNED` notification/email), plus an audit-log entry (`CLAIM_ASSIGNED`/`CLAIM_REASSIGNED` actions).
 
 ---
 

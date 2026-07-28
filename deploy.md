@@ -108,6 +108,8 @@ The backend caches permission resolution. Locally it's an in-process cache (noth
 
 ## Step 3 — Backend on Render ⚙️
 
+> 💡 **Shortcut:** the repo ships a **`render.yaml` blueprint** that defines *both* the backend and the analysis service (Steps 3 & 4). **New → Blueprint → connect the repo** creates them together and prompts for every secret it needs; Render generates `JWT_SECRET` and the analysis `ANALYSIS_SHARED_SECRET` for you. The manual walkthrough below is the equivalent by hand.
+
 1. **New → Web Service → Build from a Git repository** → pick your repo.
 2. Settings:
    - **Root Directory:** `backend`

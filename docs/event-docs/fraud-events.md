@@ -1,3 +1,5 @@
+> **⚠️ Design-era document — reconciled against the as-built system on 2026-07-29.** Written before implementation; the authoritative behaviour is the code. Where this diverges, the code wins ([`../architecture.md`](../architecture.md), [`../domain-model.md`](../domain-model.md)); deltas flagged inline as **As-built** notes.
+
 # 08.7 Fraud Events
 
 ## Document Information
@@ -29,6 +31,8 @@ The Fraud Module is responsible for:
 * Fraud Review Workflows
 
 The Fraud Module acts as the primary decision engine for claim risk assessment.
+
+> **As-built (2026-07-29):** Fraud runs as a **synchronous engine**, not an event producer/consumer. The fraud worker calls `FraudEngine.evaluate()` (weighted rules → 0–100 score → risk band), persisting a `fraud_score` row that is explainable via `fraud_rule_execution`. None of the events below are emitted. The whole **alert domain was dropped**: there is no `FraudCase`/fraud-alert entity, and no `FRAUD_ALERT_CREATED/ACKNOWLEDGED/CLOSED`, `FRAUD_REVIEW_COMPLETED`, `FRAUD_SCORE_CHANGED/OVERRIDDEN` behaviour. A HIGH score does **not** auto-open an investigation; the claim simply proceeds to `AWAITING_ASSIGNMENT`, and whether fraud is confirmed is recorded by the investigator's decision (`claim.fraudConfirmed`, migration V32).
 
 ---
 
@@ -157,6 +161,8 @@ Audit Module
 60-79  HIGH
 80-100 CRITICAL
 ```
+
+> **As-built (2026-07-29):** The engine emits **three** bands, not four — `LOW / MEDIUM / HIGH` (there is **no `CRITICAL`**). Default thresholds are `MEDIUM ≥ 25`, `HIGH ≥ 50` (configurable per ruleset), not the 30/60/80 cutoffs shown. There is no `evaluatedRules`-carrying event; the rule breakdown lives in `fraud_rule_execution`.
 
 ---
 

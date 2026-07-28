@@ -1,4 +1,8 @@
+> **⚠️ Design-era document — reconciled against the as-built schema on 2026-07-29.** This is an iterative pre-implementation draft. The authoritative schema is the **Flyway migrations `V1__…V32__`** (backend/src/main/resources/db/migration) and [`../domain-model.md`](../domain-model.md). Where this draft diverges, the migrations win; key deltas are flagged inline as **As-built** notes.
+
 # Database Design Part 11 - Fraud Domain
+
+**As-built (2026-07-29):** only **`fraud_score`** shipped (V14, append-only): columns `claim_id`, `score` (0–100 INTEGER), `risk_level` (LOW/MEDIUM/HIGH), and an `explanation` TEXT — there is NO `fraud_policy_id`, `auto_escalated`, or `evaluated_at` column. **`fraud_alert` and `fraud_rule_execution` tables were NOT built**; per-rule explainability is carried in the `explanation` text and the engine's fraud-rule breakdown, not a normalized table. Thresholds come from `fraud_ruleset` (V15). A `fraud_job` gate (V14) serializes scoring per claim, and V32 adds `claim.fraud_confirmed` (ground-truth label for scorer evaluation).
 
 Status: Draft
 
@@ -558,6 +562,8 @@ YES
 
 
 # Database Design Part 12 - Notification Domain
+
+**As-built (2026-07-29):** only a single **`notification`** table shipped (V18): `recipient_user_id` (→ `app_user`; no customer recipient column), `type`, `title`, `message`, `is_read`, `created_at`. The **`notification_template` and `notification_delivery` tables were NOT built**, and there is no `notification_job` table. Email is sent synchronously through a pluggable provider (Resend / SMTP / Log), not a DB-backed delivery/retry queue.
 
 Status: Draft
 
