@@ -1,6 +1,8 @@
 package com.niyotechnologies.claimlens.policy.repository;
 
 import com.niyotechnologies.claimlens.policy.entity.InsurancePolicy;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -18,6 +20,8 @@ public interface InsurancePolicyRepository extends JpaRepository<InsurancePolicy
     boolean existsByPolicyNumberAndIsDeletedFalse(String policyNumber);
 
     List<InsurancePolicy> findAllByIsDeletedFalse();
+
+    Page<InsurancePolicy> findAllByIsDeletedFalse(Pageable pageable);
 
     /** Customer portal: the caller's own policies (ownership-scoped below tenant). */
     List<InsurancePolicy> findAllByCustomerIdAndIsDeletedFalse(Long customerId);

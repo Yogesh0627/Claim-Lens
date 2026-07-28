@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FieldError } from "@/components/field-error";
 import {
   Select,
   SelectContent,
@@ -53,7 +54,7 @@ export function OnboardTenantDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Onboard a tenant</DialogTitle>
           <DialogDescription>
@@ -64,15 +65,18 @@ export function OnboardTenantDialog({
           <div className="grid gap-2">
             <Label>Company name *</Label>
             <Input {...register("name", { required: true })} placeholder="Acme Insurance" />
+            <FieldError name="name" errors={save.fieldErrors} />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label>Code *</Label>
               <Input {...register("code", { required: true })} placeholder="ACME" />
+              <FieldError name="code" errors={save.fieldErrors} />
             </div>
             <div className="grid gap-2">
               <Label>Tenant key *</Label>
               <Input {...register("tenantKey", { required: true })} placeholder="acme" />
+              <FieldError name="tenantKey" errors={save.fieldErrors} />
             </div>
             <div className="grid gap-2">
               <Label>Plan</Label>
@@ -92,14 +96,17 @@ export function OnboardTenantDialog({
             <div className="grid gap-2">
               <Label>Currency *</Label>
               <Input {...register("currency", { required: true })} />
+              <FieldError name="currency" errors={save.fieldErrors} />
             </div>
             <div className="grid gap-2">
               <Label>Timezone *</Label>
               <Input {...register("timezone", { required: true })} />
+              <FieldError name="timezone" errors={save.fieldErrors} />
             </div>
             <div className="grid gap-2">
               <Label>Contact email</Label>
               <Input type="email" {...register("contactEmail")} />
+              <FieldError name="contactEmail" errors={save.fieldErrors} />
             </div>
           </div>
           <DialogFooter>

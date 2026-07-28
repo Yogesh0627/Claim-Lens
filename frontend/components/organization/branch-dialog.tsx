@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FieldError } from "@/components/field-error";
 import {
   Select,
   SelectContent,
@@ -88,7 +89,7 @@ export function BranchDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit branch" : "New branch"}</DialogTitle>
         </DialogHeader>
@@ -98,11 +99,13 @@ export function BranchDialog({
               <div className="grid gap-2">
                 <Label>Code *</Label>
                 <Input {...register("code", { required: true })} />
+                <FieldError name="code" errors={save.fieldErrors} />
               </div>
             ) : null}
             <div className="grid gap-2">
               <Label>Name *</Label>
               <Input {...register("name", { required: true })} />
+              <FieldError name="name" errors={save.fieldErrors} />
             </div>
             <div className="grid gap-2">
               <Label>Status</Label>
@@ -122,10 +125,12 @@ export function BranchDialog({
             <div className="grid gap-2">
               <Label>Email</Label>
               <Input type="email" {...register("email")} />
+              <FieldError name="email" errors={save.fieldErrors} />
             </div>
             <div className="grid gap-2">
               <Label>Phone</Label>
               <Input {...register("phone")} />
+              <FieldError name="phone" errors={save.fieldErrors} />
             </div>
             <div className="grid gap-2">
               <Label>City</Label>

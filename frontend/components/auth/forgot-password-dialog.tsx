@@ -48,7 +48,7 @@ export function ForgotPasswordDialog() {
           Forgot password?
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Reset your password</DialogTitle>
           <DialogDescription>

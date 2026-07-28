@@ -1,0 +1,12 @@
+{
+  "name": "Tuned: demote EARLY_CLAIM, boost DUPLICATE_IMAGE",
+  "weights": {
+    "DUPLICATE_IMAGE": 50,
+    "AMOUNT_OVER_SUM_INSURED": 40,
+    "SYNTHETIC_IMAGE": 25,
+    "EARLY_CLAIM": 8,
+    "EXIF_INCONSISTENT": 20
+  },
+  "medium": 25,
+  "high": 50
+}

@@ -45,7 +45,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 ClaimLensPrincipal principal = jwtService.parse(header.substring(PREFIX.length()));
                 List<SimpleGrantedAuthority> authorities =
-                        permissionService.permissionCodesForRole(principal.roleId()).stream()
+                        permissionService.permissionCodesForRole(principal.tenantId(), principal.roleId()).stream()
                                 .map(SimpleGrantedAuthority::new)
                                 .toList();
                 UsernamePasswordAuthenticationToken authentication =

@@ -6,6 +6,7 @@ import com.niyotechnologies.claimlens.platform.dto.ImpersonationResponse;
 import com.niyotechnologies.claimlens.platform.dto.OnboardTenantRequest;
 import com.niyotechnologies.claimlens.platform.dto.PlatformAnalyticsResponse;
 import com.niyotechnologies.claimlens.platform.dto.TenantStatusRequest;
+import com.niyotechnologies.claimlens.platform.dto.UpdateTenantRequest;
 import com.niyotechnologies.claimlens.platform.service.PlatformAnalyticsService;
 import com.niyotechnologies.claimlens.platform.service.PlatformService;
 import com.niyotechnologies.claimlens.security.model.ClaimLensPrincipal;
@@ -45,11 +46,28 @@ public class PlatformController {
         return ApiResponse.success(platformService.onboard(request));
     }
 
+    @PutMapping("/tenants/{tenantId}")
+    public ApiResponse<InsuranceCompanyResponse> update(
+            @PathVariable Long tenantId,
+            @Valid @RequestBody UpdateTenantRequest request) {
+        return ApiResponse.success(platformService.updateTenant(tenantId, request));
+    }
+
     @PostMapping("/tenants/{tenantId}/status")
     public ApiResponse<InsuranceCompanyResponse> setStatus(
             @PathVariable Long tenantId,
             @Valid @RequestBody TenantStatusRequest request) {
         return ApiResponse.success(platformService.setStatus(tenantId, request.status()));
+    }
+
+    @DeleteMapping("/tenants/{tenantId}")
+    public ApiResponse<InsuranceCompanyResponse> delete(@PathVariable Long tenantId) {
+        return ApiResponse.success(platformService.deleteTenant(tenantId));
+    }
+
+    @PostMapping("/tenants/{tenantId}/restore")
+    public ApiResponse<InsuranceCompanyResponse> restore(@PathVariable Long tenantId) {
+        return ApiResponse.success(platformService.restoreTenant(tenantId));
     }
 
     @PostMapping("/tenants/{tenantId}/impersonate")

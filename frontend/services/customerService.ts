@@ -3,13 +3,18 @@ import type {
   ApiResponse,
   CreateCustomerRequest,
   CustomerResponse,
+  PagedResponse,
+  PageParams,
   UpdateCustomerRequest,
 } from "@/lib/types";
 
 const unwrap = <T>(p: Promise<{ data: ApiResponse<T> }>) => p.then((r) => r.data.data);
 
 export const customerService = {
-  list: () => unwrap(http.get<ApiResponse<CustomerResponse[]>>("/customers")),
+  list: (params: PageParams = {}) =>
+    unwrap(http.get<ApiResponse<PagedResponse<CustomerResponse>>>("/customers", { params })),
+  /** All customers (unpaged) — for pickers. */
+  options: () => unwrap(http.get<ApiResponse<CustomerResponse[]>>("/customers/options")),
   get: (id: number) => unwrap(http.get<ApiResponse<CustomerResponse>>(`/customers/${id}`)),
   create: (body: CreateCustomerRequest) =>
     unwrap(http.post<ApiResponse<CustomerResponse>>("/customers", body)),

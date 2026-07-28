@@ -12,5 +12,10 @@ public enum ClaimStatus {
     APPROVED,
     REJECTED,
     CLOSED,
-    REOPENED
+    REOPENED;
+
+    /** A claim that has reached a final outcome — it no longer blocks a fresh claim for the same loss. */
+    public boolean isTerminal() {
+        return this == APPROVED || this == REJECTED || this == CLOSED;
+    }
 }

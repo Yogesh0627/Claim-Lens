@@ -32,4 +32,8 @@ public interface DocumentService {
     List<DocumentResponse> listForClaimInternal(Long claimId);
 
     DocumentContent downloadInternal(Long claimId, Long documentId);
+
+    List<DocumentVersionResponse> listVersionsInternal(Long claimId, Long documentId);
+
+    DocumentContent downloadVersionInternal(Long claimId, Long documentId, Long versionId);
 }

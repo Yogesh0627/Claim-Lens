@@ -109,6 +109,12 @@ public class DocumentServiceImpl implements DocumentService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('CLAIM_READ')")
     public List<DocumentVersionResponse> listVersions(Long claimId, Long documentId) {
+        return listVersionsInternal(claimId, documentId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DocumentVersionResponse> listVersionsInternal(Long claimId, Long documentId) {
         Document document = documentRepository.findByIdAndClaimIdAndIsDeletedFalse(documentId, claimId)
                 .orElseThrow(() -> new NotFoundException("DOCUMENT_NOT_FOUND", "Document not found"));
         return documentVersionRepository
@@ -138,6 +144,12 @@ public class DocumentServiceImpl implements DocumentService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('CLAIM_READ')")
     public DocumentContent downloadVersion(Long claimId, Long documentId, Long versionId) {
+        return downloadVersionInternal(claimId, documentId, versionId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DocumentContent downloadVersionInternal(Long claimId, Long documentId, Long versionId) {
         // Guard the document is in this claim/tenant first, then fetch the requested version.
         documentRepository.findByIdAndClaimIdAndIsDeletedFalse(documentId, claimId)
                 .orElseThrow(() -> new NotFoundException("DOCUMENT_NOT_FOUND", "Document not found"));

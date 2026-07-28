@@ -53,6 +53,12 @@ public class BranchController {
         );
     }
 
+    /** Flat list of every branch in the tenant — for a "home branch" picker on the user form. */
+    @GetMapping("/branches")
+    public ApiResponse<List<BranchResponse>> allBranches() {
+        return ApiResponse.success(branchService.getAllBranches());
+    }
+
     @PutMapping("/regions/{regionId}/branches/{branchId}")
     public ApiResponse<BranchResponse> updateBranch(
             @PathVariable Long regionId,

@@ -1,6 +1,7 @@
 package com.niyotechnologies.claimlens.policy.controller;
 
 import com.niyotechnologies.claimlens.common.response.ApiResponse;
+import com.niyotechnologies.claimlens.common.response.PagedResponse;
 import com.niyotechnologies.claimlens.policy.dto.request.CreatePolicyRequest;
 import com.niyotechnologies.claimlens.policy.dto.response.PolicyResponse;
 import com.niyotechnologies.claimlens.policy.service.PolicyService;
@@ -32,8 +33,16 @@ public class PolicyController {
     }
 
     @GetMapping
-    public ApiResponse<List<PolicyResponse>> getPolicies() {
-        return ApiResponse.success(policyService.getPolicies());
+    public ApiResponse<PagedResponse<PolicyResponse>> getPolicies(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ApiResponse.success(policyService.getPolicies(page, size));
+    }
+
+    /** Unpaged — for the policy picker on the new-claim form. */
+    @GetMapping("/options")
+    public ApiResponse<List<PolicyResponse>> getPolicyOptions() {
+        return ApiResponse.success(policyService.getPolicyOptions());
     }
 
     @PostMapping("/{policyId}/cancel")

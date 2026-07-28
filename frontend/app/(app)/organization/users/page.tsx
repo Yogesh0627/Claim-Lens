@@ -5,19 +5,20 @@ import { Pencil, Plus } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { DataState, EmptyState } from "@/components/data-state";
 import { DataTable, type Column } from "@/components/data-table";
+import { PaginationBar } from "@/components/pagination-bar";
 import { StatusBadge } from "@/components/status-badge";
 import { Can } from "@/components/can";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/icon-button";
 import { UserFormDialog } from "@/components/users/user-form-dialog";
-import { useAsync } from "@/hooks/useAsync";
+import { usePaginated } from "@/hooks/usePaginated";
 import { userService } from "@/services/userService";
 import { GENERIC_STATUS_META, optionLabel } from "@/lib/enums";
 import { PERMISSIONS } from "@/lib/permissions";
 import type { UserResponse } from "@/lib/types";
 
 export default function UsersPage() {
-  const { data, loading, error, refetch } = useAsync(() => userService.list(), []);
+  const { meta, setPage, loading, error, refetch } = usePaginated(userService.list);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<UserResponse | null>(null);
 
@@ -38,6 +39,14 @@ export default function UsersPage() {
     { header: "Email", cell: (u) => u.email },
     { header: "Employee", cell: (u) => u.employeeCode },
     { header: "Role", cell: (u) => (u.roleCode ? optionLabel(u.roleCode) : "—") },
+    {
+      header: "Department",
+      cell: (u) => u.departmentName ?? "—",
+    },
+    {
+      header: "Branch",
+      cell: (u) => u.homeBranchName ?? "—",
+    },
     { header: "Status", cell: (u) => <StatusBadge value={u.status} map={GENERIC_STATUS_META} /> },
     {
       header: "",
@@ -70,8 +79,8 @@ export default function UsersPage() {
       <DataState
         loading={loading}
         error={error}
-        data={data}
-        emptyWhen={(d) => d.length === 0}
+        data={meta}
+        emptyWhen={(m) => m.totalElements === 0}
         empty={
           <EmptyState
             title="No users"
@@ -85,7 +94,12 @@ export default function UsersPage() {
           />
         }
       >
-        {(users) => <DataTable columns={columns} rows={users} getKey={(u) => u.id} />}
+        {(m) => (
+          <div className="space-y-4">
+            <DataTable columns={columns} rows={m.content} getKey={(u) => u.id} />
+            <PaginationBar meta={m} onPageChange={setPage} label="users" />
+          </div>
+        )}
       </DataState>
 
       <UserFormDialog open={open} onOpenChange={setOpen} user={editing} onSaved={refetch} />

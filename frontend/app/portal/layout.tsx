@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { UserMenu } from "@/components/user-menu";
 import { AppFooter } from "@/components/app-footer";
 import { RouteTitle } from "@/components/route-title";
+import { CustomerAssistant } from "@/components/ai/customer-assistant";
 import { useAuth } from "@/hooks/useAuth";
 import { homePathFor } from "@/lib/navigation";
 import { PERMISSIONS } from "@/lib/permissions";
@@ -42,16 +43,17 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     <div className="flex min-h-screen flex-col">
       <RouteTitle />
       <header className="bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10 border-b backdrop-blur">
-        <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-4 px-4">
-          <Link href="/portal" className="flex items-center gap-2">
+        <div className="mx-auto flex h-14 w-full max-w-5xl items-center gap-2 px-3 sm:gap-4 sm:px-4">
+          <Link href="/portal" className="flex shrink-0 items-center gap-2">
             <span className="bg-primary text-primary-foreground flex h-8 w-8 items-center justify-center rounded-lg">
               <ShieldCheck className="h-5 w-5" />
             </span>
-            <span className="font-semibold">
+            {/* Brand text is dropped below sm so the nav + account fit a phone width. */}
+            <span className="hidden font-semibold sm:inline">
               ClaimLens <span className="text-muted-foreground font-normal">Portal</span>
             </span>
           </Link>
-          <nav className="ml-4 flex items-center gap-1">
+          <nav className="flex items-center gap-1 sm:ml-4">
             {NAV.map((item) => {
               const active =
                 item.href === "/portal"
@@ -62,7 +64,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                    "rounded-md px-2 py-1.5 text-sm font-medium whitespace-nowrap transition-colors sm:px-3",
                     active
                       ? "bg-muted text-foreground"
                       : "text-muted-foreground hover:text-foreground",
@@ -73,7 +75,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               );
             })}
           </nav>
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             <ThemeToggle />
             <UserMenu />
           </div>
@@ -82,6 +84,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <main className="w-full min-w-0 flex-1 p-4 md:p-6">
         <div className="mx-auto w-full max-w-5xl space-y-6">{children}</div>
       </main>
+      <CustomerAssistant />
       <AppFooter />
     </div>
   );

@@ -153,6 +153,12 @@ public class BranchServiceImpl implements BranchService {
     }
 
     @Override
+    @PreAuthorize("hasAuthority('ORG_BRANCH_READ')")
+    public List<BranchResponse> getAllBranches() {
+        return branchMapper.toResponseList(branchRepository.findAllByIsDeletedFalse());
+    }
+
+    @Override
     @Transactional
     @PreAuthorize("hasAuthority('ORG_BRANCH_WRITE')")
     public BranchResponse updateBranch(

@@ -9,6 +9,23 @@ export interface ApiResponse<T> {
   data: T;
 }
 
+/** Page envelope returned by list endpoints — mirrors the backend PagedResponse record. */
+export interface PagedResponse<T> {
+  content: T[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+}
+
+/** Query params every paginated list endpoint accepts. */
+export interface PageParams {
+  page?: number;
+  size?: number;
+}
+
 // ---- auth ----
 export interface LoginRequest {
   email: string;
@@ -30,6 +47,9 @@ export interface MeResponse {
   tenantId: number;
   roleId: number;
   roleCode: string | null;
+  roleName: string | null;
+  firstName: string | null;
+  lastName: string | null;
   email: string;
   employeeCode: string;
   customerId: number | null;
@@ -47,6 +67,41 @@ export interface UserResponse {
   roleId: number;
   roleCode: string | null;
   status: string;
+  departmentId: number | null;
+  departmentName: string | null;
+  designationId: number | null;
+  designationName: string | null;
+  regionId: number | null;
+  regionName: string | null;
+  homeBranchId: number | null;
+  homeBranchName: string | null;
+  branches: { id: number; name: string; primary: boolean }[];
+}
+export interface ProfileResponse {
+  userId: number;
+  firstName: string;
+  lastName: string | null;
+  email: string;
+  phone: string | null;
+  employeeCode: string | null;
+  roleCode: string | null;
+  roleName: string | null;
+  departmentName: string | null;
+  designationName: string | null;
+  regionName: string | null;
+  homeBranchName: string | null;
+  homeBranchLocation: string | null;
+  branchNames: string[];
+  customerNumber: string | null;
+}
+export interface UpdateProfileRequest {
+  firstName: string;
+  lastName?: string | null;
+  phone?: string | null;
+}
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
 }
 
 export interface CreateUserRequest {
@@ -60,6 +115,11 @@ export interface CreateUserRequest {
   password?: string | null;
   /** Required for roleCode "CUSTOMER" (links the login to a policyholder); rejected for staff roles. */
   customerId?: number | null;
+  departmentId?: number | null;
+  designationId?: number | null;
+  regionId?: number | null;
+  homeBranchId?: number | null;
+  branchIds?: number[] | null;
 }
 export interface UpdateUserRequest {
   firstName: string;
@@ -67,6 +127,11 @@ export interface UpdateUserRequest {
   phone?: string | null;
   roleCode: string;
   status: string;
+  departmentId?: number | null;
+  designationId?: number | null;
+  regionId?: number | null;
+  homeBranchId?: number | null;
+  branchIds?: number[] | null;
 }
 
 // ---- roles ----
@@ -185,7 +250,18 @@ export interface InsuranceCompanyResponse {
   subscriptionPlan: string;
   currency: string;
   timezone: string;
+  contactEmail?: string | null;
   createdAt: string;
+  isDeleted: boolean;
+  deletedAt?: string | null;
+}
+
+export interface UpdateTenantRequest {
+  name: string;
+  subscriptionPlan?: string;
+  currency: string;
+  timezone: string;
+  contactEmail?: string | null;
 }
 
 // ---- customer ----
@@ -292,13 +368,29 @@ export interface VehicleRequest {
   seatingCapacity?: number | null;
   idv?: number | null;
 }
+export interface ProductDocumentResponse {
+  id: number;
+  documentType: string;
+  fileName: string;
+  contentType: string | null;
+  sizeBytes: number | null;
+  createdAt: string;
+  // On the upload response: how many text chunks were auto-extracted and indexed into the AI
+  // knowledge base. Null when not applicable (non-PDF, no extractable text, or a plain list row).
+  indexedSections?: number | null;
+}
+
 export interface PolicyResponse {
   id: number;
   publicId: string;
   policyNumber: string;
   customerId: number;
+  customerName: string | null;
   insuranceProductId: number;
+  productName: string | null;
+  productCode: string | null;
   insuranceProductVersionId: number;
+  productVersionNumber: number | null;
   effectiveFrom: string;
   effectiveTo: string;
   sumInsured: number;
@@ -328,8 +420,17 @@ export interface ClaimResponse {
   publicId: string;
   claimNumber: string;
   customerId: number;
+  customerName: string | null;
+  customerNumber: string | null;
+  raisedByName: string | null;
+  raisedByCode: string | null;
+  raisedByStaff: boolean;
+  investigatingOfficerName: string | null;
+  investigatingOfficerCode: string | null;
   insurancePolicyId: number;
   insuranceProductVersionId: number | null;
+  productName: string | null;
+  productVersionNumber: number | null;
   policyNumber: string | null;
   vehicleRegistrationNumber: string | null;
   incidentDate: string;
@@ -337,6 +438,12 @@ export interface ClaimResponse {
   status: string;
   submittedAt: string | null;
   warnings: string[];
+}
+export interface ClaimTimelineEntry {
+  fromStatus: string | null;
+  toStatus: string;
+  note: string | null;
+  at: string;
 }
 export interface CreateClaimRequest {
   customerId: number;
@@ -360,6 +467,8 @@ export interface AssignClaimRequest {
 export interface ClaimDecisionRequest {
   decision: "APPROVE" | "REJECT";
   reason?: string | null;
+  /** On REJECT: was the claim actually fraudulent? Feeds the fraud-model evaluation loop. */
+  fraudConfirmed?: boolean | null;
 }
 
 // ---- document ----
@@ -393,6 +502,28 @@ export interface FraudRuleResponse {
   description: string | null;
   weight: number;
   enabled: boolean;
+}
+/** One implemented fraud rule the config UI can offer (from the backend rule registry). */
+export interface FraudRuleCatalogEntry {
+  code: string;
+  description: string;
+  defaultWeight: number;
+}
+
+/** A role and the permissions it grants (roles-and-permissions view). */
+export interface PermissionSummary {
+  code: string;
+  name: string;
+  module: string;
+}
+export interface RoleWithPermissions {
+  id: number;
+  code: string;
+  name: string;
+  description: string | null;
+  permissions: PermissionSummary[];
+  // True when THIS tenant has customized the role; false = inheriting the platform default.
+  customized: boolean;
 }
 export interface FraudRulesetResponse {
   id: number;
@@ -507,6 +638,13 @@ export interface AskCoverageResponse {
   model: string;
   insuranceProductVersionId: number;
   citations: CoverageCitation[];
+}
+export interface AskableProduct {
+  productId: number;
+  productName: string;
+  productCode: string;
+  versionId: number;
+  versionNumber: number;
 }
 
 // ---- platform (cross-tenant SaaS admin) ----

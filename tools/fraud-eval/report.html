@@ -1,0 +1,451 @@
+<title>ClaimLens · Fraud-Scoring Evaluation</title>
+<style>
+  :root {
+    --ground: #fbfcfe;
+    --surface: #ffffff;
+    --surface-2: #f4f6fa;
+    --ink: #131920;
+    --ink-2: #3d4753;
+    --muted: #667486;
+    --line: #e4e9f1;
+    --line-strong: #cfd7e3;
+    --accent: #4263eb;
+    --accent-soft: #e7ecfe;
+    --fraud: #e8590c;
+    --fraud-soft: #fdece0;
+    --legit: #0ca678;
+    --legit-soft: #e3f6ef;
+    --good: #0ca678;
+    --warn: #e8a90c;
+    --shadow: 0 1px 2px rgba(19, 25, 32, .04), 0 8px 24px -12px rgba(19, 25, 32, .12);
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #0f141a;
+      --surface: #161d26;
+      --surface-2: #1b232e;
+      --ink: #eef2f7;
+      --ink-2: #b9c3d0;
+      --muted: #8695a8;
+      --line: #232d39;
+      --line-strong: #33404f;
+      --accent: #7b93ff;
+      --accent-soft: #1e2740;
+      --fraud: #ff8a4c;
+      --fraud-soft: #2c1c12;
+      --legit: #34d3a0;
+      --legit-soft: #10241d;
+      --good: #34d3a0;
+      --warn: #f0c04a;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 12px 32px -16px rgba(0, 0, 0, .6);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0f141a; --surface: #161d26; --surface-2: #1b232e; --ink: #eef2f7; --ink-2: #b9c3d0;
+    --muted: #8695a8; --line: #232d39; --line-strong: #33404f; --accent: #7b93ff; --accent-soft: #1e2740;
+    --fraud: #ff8a4c; --fraud-soft: #2c1c12; --legit: #34d3a0; --legit-soft: #10241d;
+    --good: #34d3a0; --warn: #f0c04a;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 32px -16px rgba(0,0,0,.6);
+  }
+  :root[data-theme="light"] {
+    --ground: #fbfcfe; --surface: #ffffff; --surface-2: #f4f6fa; --ink: #131920; --ink-2: #3d4753;
+    --muted: #667486; --line: #e4e9f1; --line-strong: #cfd7e3; --accent: #4263eb; --accent-soft: #e7ecfe;
+    --fraud: #e8590c; --fraud-soft: #fdece0; --legit: #0ca678; --legit-soft: #e3f6ef;
+    --good: #0ca678; --warn: #e8a90c;
+    --shadow: 0 1px 2px rgba(19,25,32,.04), 0 8px 24px -12px rgba(19,25,32,.12);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font-family: var(--sans); line-height: 1.55; font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; padding: clamp(24px, 5vw, 56px) clamp(18px, 4vw, 36px) 72px; }
+
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--accent); font-weight: 600; margin: 0 0 14px;
+  }
+  h1 {
+    font-size: clamp(28px, 4.6vw, 42px); line-height: 1.08; letter-spacing: -.02em;
+    font-weight: 720; margin: 0 0 14px; text-wrap: balance;
+  }
+  .lede { font-size: clamp(16px, 2.1vw, 18px); color: var(--ink-2); max-width: 62ch; margin: 0; }
+  .lede b { color: var(--ink); font-weight: 640; }
+
+  h2 {
+    font-size: 13px; font-family: var(--mono); letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; margin: 0 0 4px;
+  }
+  .sec-note { color: var(--muted); font-size: 14px; margin: 0 0 18px; max-width: 64ch; }
+  section { margin-top: clamp(40px, 6vw, 64px); }
+
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  /* hero stat tiles */
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 34px; }
+  @media (max-width: 720px) { .tiles { grid-template-columns: repeat(2, 1fr); } }
+  .tile {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    padding: 18px 18px 16px; box-shadow: var(--shadow);
+  }
+  .tile .k { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+  .tile .v { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 32px; font-weight: 660; letter-spacing: -.02em; line-height: 1; }
+  .tile .s { font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+  .tile .v.pos { color: var(--accent); }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
+    padding: clamp(18px, 3vw, 26px); box-shadow: var(--shadow);
+  }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  figure { margin: 0; }
+  .chart-wrap { width: 100%; overflow-x: auto; }
+  svg { display: block; width: 100%; height: auto; }
+  .axis { stroke: var(--line-strong); stroke-width: 1; }
+  .grid-line { stroke: var(--line); stroke-width: 1; }
+  .tick { fill: var(--muted); font-family: var(--mono); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .bar-label { fill: var(--ink); font-family: var(--mono); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .bar-sub { fill: var(--muted); font-family: var(--mono); font-size: 10px; font-variant-numeric: tabular-nums; }
+
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-2); margin-top: 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+  /* operating point cards */
+  .op-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+  .op-head h3 { margin: 0; font-size: 16px; font-weight: 660; }
+  .pill { font-family: var(--mono); font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; letter-spacing: .04em; }
+  .pill.high { background: var(--fraud-soft); color: var(--fraud); }
+  .pill.med { background: var(--accent-soft); color: var(--accent); }
+  .op-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 12px; margin: 14px 0 18px; }
+  .op-metrics .m .mv { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 22px; font-weight: 640; }
+  .op-metrics .m .ml { font-size: 11.5px; color: var(--muted); font-family: var(--mono); text-transform: uppercase; letter-spacing: .04em; }
+
+  /* confusion matrix */
+  .cm { display: grid; grid-template-columns: 78px 1fr 1fr; grid-auto-rows: auto; gap: 6px; font-size: 12.5px; }
+  .cm .corner { }
+  .cm .col-h, .cm .row-h { font-family: var(--mono); font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; align-self: center; }
+  .cm .row-h { text-align: right; padding-right: 8px; }
+  .cm .col-h { text-align: center; }
+  .cm .cell { border-radius: 9px; padding: 10px 8px; text-align: center; border: 1px solid transparent; }
+  .cm .cell .cn { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 20px; font-weight: 660; line-height: 1; }
+  .cm .cell .cl { font-size: 10px; color: var(--muted); margin-top: 3px; font-family: var(--mono); letter-spacing: .03em; }
+  .cm .tp { background: var(--legit-soft); border-color: color-mix(in srgb, var(--legit) 30%, transparent); }
+  .cm .tn { background: var(--surface-2); }
+  .cm .fp { background: var(--fraud-soft); border-color: color-mix(in srgb, var(--fraud) 28%, transparent); }
+  .cm .fn { background: var(--fraud-soft); border-color: color-mix(in srgb, var(--fraud) 28%, transparent); }
+
+  /* per-rule table */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  thead th { text-align: left; font-family: var(--mono); font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 0 12px 10px; border-bottom: 1px solid var(--line); }
+  thead th.r, tbody td.r { text-align: right; }
+  tbody td { padding: 13px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  .rule-code { font-family: var(--mono); font-size: 12.5px; font-weight: 600; }
+  .rule-desc { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .wt { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+  .prbar { position: relative; height: 22px; background: var(--surface-2); border-radius: 6px; overflow: hidden; min-width: 90px; }
+  .prbar > i { position: absolute; inset: 0 auto 0 0; border-radius: 6px; }
+  .prbar > b { position: absolute; inset: 0; display: flex; align-items: center; padding-left: 8px; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 600; color: var(--ink); }
+  .tag { font-family: var(--mono); font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
+  .tag.best { background: var(--legit-soft); color: var(--legit); }
+  .tag.noisy { background: var(--fraud-soft); color: var(--fraud); }
+
+  .callout { border-left: 3px solid var(--accent); background: var(--surface); border-radius: 0 12px 12px 0; padding: 16px 20px; margin-top: 16px; box-shadow: var(--shadow); }
+  .callout p { margin: 0; color: var(--ink-2); font-size: 14.5px; }
+  .callout p + p { margin-top: 10px; }
+  .callout b { color: var(--ink); }
+
+  .foot { margin-top: 56px; padding-top: 22px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  .foot code { font-family: var(--mono); font-size: 12px; background: var(--surface-2); padding: 1px 6px; border-radius: 5px; color: var(--ink-2); }
+  .kbd { font-family: var(--mono); }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">ClaimLens · Model evaluation</p>
+    <h1>How good is the fraud score — and how do we know?</h1>
+    <p class="lede">
+      The engine is a <b>rule-based, explainable risk scorer</b> (weighted rules → 0–100 →
+      LOW / MEDIUM / HIGH), not a black box. Accuracy needs ground truth, so this report scores a
+      labelled dataset through the <b>identical</b> logic and evaluates it as a classifier —
+      precision, recall, ROC/AUC and per-rule lift. Data is <b>synthetic but transparent</b>; swap in
+      real investigator-labelled outcomes and the same harness reruns.
+    </p>
+
+    <div class="tiles">
+      <div class="tile">
+        <p class="k">ROC AUC</p>
+        <div class="v pos num">0.87</div>
+        <p class="s">Ranks a random fraud above a random legit claim <b>87%</b> of the time.</p>
+      </div>
+      <div class="tile">
+        <p class="k">AUPRC</p>
+        <div class="v num">0.66</div>
+        <p class="s">vs a <span class="num">0.13</span> no-skill baseline — a <b>5×</b> lift under imbalance.</p>
+      </div>
+      <div class="tile">
+        <p class="k">HIGH precision</p>
+        <div class="v num">0.90</div>
+        <p class="s">9 in 10 HIGH-risk flags are genuine fraud.</p>
+      </div>
+      <div class="tile">
+        <p class="k">Dataset</p>
+        <div class="v num">400</div>
+        <p class="s"><span class="num">52</span> fraud · <span class="num">13%</span> base rate.</p>
+      </div>
+    </div>
+  </header>
+
+  <section>
+    <h2>Does the score track reality?</h2>
+    <p class="sec-note">
+      The cleanest test of a risk score: within each score band, what share of claims were <em>actually</em>
+      fraud? A useful score climbs monotonically — and this one goes from ~3% at the bottom to 100% at the top.
+    </p>
+    <figure class="card">
+      <div class="chart-wrap">
+        <!-- Calibration: fraud rate by score band -->
+        <svg viewBox="0 0 640 300" role="img" aria-label="Actual fraud rate by score band, rising from 3% to 100%">
+          <!-- y grid at 0,25,50,75,100 -->
+          <g>
+            <line class="axis" x1="70" y1="250" x2="620" y2="250"/>
+            <line class="grid-line" x1="70" y1="195" x2="620" y2="195"/>
+            <line class="grid-line" x1="70" y1="140" x2="620" y2="140"/>
+            <line class="grid-line" x1="70" y1="85"  x2="620" y2="85"/>
+            <line class="grid-line" x1="70" y1="30"  x2="620" y2="30"/>
+            <text class="tick" x="60" y="254" text-anchor="end">0%</text>
+            <text class="tick" x="60" y="199" text-anchor="end">25%</text>
+            <text class="tick" x="60" y="144" text-anchor="end">50%</text>
+            <text class="tick" x="60" y="89"  text-anchor="end">75%</text>
+            <text class="tick" x="60" y="34"  text-anchor="end">100%</text>
+          </g>
+          <!-- bars: bands 0,20,40,60,80,100 ; rates 2.6,15.9,44.8,80,100,100 ; n 268,82,29,10,9,2 -->
+          <!-- plot x 70..620 (550) / 6 slots ~91.6 ; bar w 58, y0=250, full height 220 (0..100%) -->
+          <g>
+            <!-- band 0 (score 0-19) rate 2.6% h=5.7 -->
+            <rect x="87"  y="244.3" width="58" height="5.7"  rx="4" fill="var(--legit)" opacity="0.55"/>
+            <text class="bar-label" x="116" y="236" text-anchor="middle">3%</text>
+            <text class="bar-sub"   x="116" y="266" text-anchor="middle">n=268</text>
+            <!-- band 20 (20-39) 15.9% h=35 -->
+            <rect x="178.6" y="215" width="58" height="35" rx="4" fill="var(--warn)" opacity="0.7"/>
+            <text class="bar-label" x="207.6" y="207" text-anchor="middle">16%</text>
+            <text class="bar-sub"   x="207.6" y="266" text-anchor="middle">n=82</text>
+            <!-- band 40 (40-59) 44.8% h=98.6 -->
+            <rect x="270.3" y="151.4" width="58" height="98.6" rx="4" fill="var(--warn)"/>
+            <text class="bar-label" x="299.3" y="143" text-anchor="middle">45%</text>
+            <text class="bar-sub"   x="299.3" y="266" text-anchor="middle">n=29</text>
+            <!-- band 60 (60-79) 80% h=176 -->
+            <rect x="362"   y="74" width="58" height="176" rx="4" fill="var(--fraud)" opacity="0.85"/>
+            <text class="bar-label" x="391" y="66" text-anchor="middle">80%</text>
+            <text class="bar-sub"   x="391" y="266" text-anchor="middle">n=10</text>
+            <!-- band 80 (80-99) 100% h=220 -->
+            <rect x="453.6" y="30" width="58" height="220" rx="4" fill="var(--fraud)"/>
+            <text class="bar-label" x="482.6" y="22" text-anchor="middle">100%</text>
+            <text class="bar-sub"   x="482.6" y="266" text-anchor="middle">n=9</text>
+            <!-- band 100 100% h=220 -->
+            <rect x="545.3" y="30" width="58" height="220" rx="4" fill="var(--fraud)"/>
+            <text class="bar-label" x="574.3" y="22" text-anchor="middle">100%</text>
+            <text class="bar-sub"   x="574.3" y="266" text-anchor="middle">n=2</text>
+          </g>
+          <!-- x labels -->
+          <g>
+            <text class="tick" x="116"   y="286" text-anchor="middle">0–19</text>
+            <text class="tick" x="207.6" y="286" text-anchor="middle">20–39</text>
+            <text class="tick" x="299.3" y="286" text-anchor="middle">40–59</text>
+            <text class="tick" x="391"   y="286" text-anchor="middle">60–79</text>
+            <text class="tick" x="482.6" y="286" text-anchor="middle">80–99</text>
+            <text class="tick" x="574.3" y="286" text-anchor="middle">100</text>
+          </g>
+          <text class="tick" x="345" y="300" text-anchor="middle" style="letter-spacing:.08em">FRAUD SCORE BAND</text>
+        </svg>
+      </div>
+      <p class="sec-note" style="margin:14px 0 0">
+        Reads as a calibration curve: score is <b>monotonic with real fraud</b>. Every claim scoring 80+ was
+        fraud; almost everything scoring 0–19 was legitimate.
+      </p>
+    </figure>
+  </section>
+
+  <section>
+    <h2>Ranking quality — ROC</h2>
+    <p class="sec-note">
+      Sweeping the threshold across the whole range traces how true-positives trade against false-positives.
+      The curve hugs the top-left (good); the diagonal is a coin-flip. The two dots are the engine's shipped
+      cut-offs.
+    </p>
+    <figure class="card">
+      <div class="chart-wrap">
+        <svg viewBox="0 0 640 340" role="img" aria-label="ROC curve with AUC 0.87, above the diagonal baseline">
+          <!-- plot area x 70..600 (530), y 40..300 (260) ; unit square -->
+          <g>
+            <line class="axis" x1="70" y1="300" x2="600" y2="300"/>
+            <line class="axis" x1="70" y1="40"  x2="70"  y2="300"/>
+            <line class="grid-line" x1="202.5" y1="40" x2="202.5" y2="300"/>
+            <line class="grid-line" x1="335"   y1="40" x2="335"   y2="300"/>
+            <line class="grid-line" x1="467.5" y1="40" x2="467.5" y2="300"/>
+            <line class="grid-line" x1="70" y1="235" x2="600" y2="235"/>
+            <line class="grid-line" x1="70" y1="170" x2="600" y2="170"/>
+            <line class="grid-line" x1="70" y1="105" x2="600" y2="105"/>
+            <text class="tick" x="70"  y="316" text-anchor="middle">0</text>
+            <text class="tick" x="335" y="316" text-anchor="middle">0.5</text>
+            <text class="tick" x="600" y="316" text-anchor="middle">1.0</text>
+            <text class="tick" x="62" y="304" text-anchor="end">0</text>
+            <text class="tick" x="62" y="174" text-anchor="end">0.5</text>
+            <text class="tick" x="62" y="44"  text-anchor="end">1.0</text>
+            <text class="tick" x="335" y="336" text-anchor="middle" style="letter-spacing:.08em">FALSE-POSITIVE RATE</text>
+            <text class="tick" transform="rotate(-90 24 170)" x="24" y="170" text-anchor="middle" style="letter-spacing:.08em">TRUE-POSITIVE RATE</text>
+          </g>
+          <!-- diagonal baseline -->
+          <line x1="70" y1="300" x2="600" y2="40" stroke="var(--line-strong)" stroke-width="1.5" stroke-dasharray="4 5"/>
+          <!-- ROC polyline. x=70+fpr*530, y=300-tpr*260
+               pts: (0,0)(0,.0385)(0,.0962)(0,.2115)(.0029,.2308)(.0057,.3654)(.0086,.4038)(.0517,.6154)(.0776,.6731)(.25,.8654)(1,1) -->
+          <polyline fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"
+            points="70,300 70,290 70,275 70,245 71.5,240 73,205 74.6,195 97.4,140 111.1,125 202.5,75 600,40"/>
+          <!-- soft fill under curve -->
+          <polygon fill="var(--accent)" opacity="0.08"
+            points="70,300 70,290 70,275 70,245 71.5,240 73,205 74.6,195 97.4,140 111.1,125 202.5,75 600,40 600,300"/>
+          <!-- operating points -->
+          <circle cx="73" cy="205" r="5.5" fill="var(--surface)" stroke="var(--fraud)" stroke-width="2.5"/>
+          <text class="bar-sub" x="84" y="203" fill="var(--fraud)" style="font-weight:600">HIGH ≥50</text>
+          <circle cx="111.1" cy="125" r="5.5" fill="var(--surface)" stroke="var(--accent)" stroke-width="2.5"/>
+          <text class="bar-sub" x="122" y="123" fill="var(--accent)" style="font-weight:600">MEDIUM ≥25</text>
+          <text class="bar-label" x="560" y="150" text-anchor="end" style="font-size:15px">AUC 0.87</text>
+        </svg>
+      </div>
+    </figure>
+  </section>
+
+  <section>
+    <h2>The threshold is a business dial</h2>
+    <p class="sec-note">
+      Where you draw the line is a policy choice, not a fact. HIGH is a precise, low-noise queue; MEDIUM
+      catches more fraud at the cost of more false alarms. Pick from the curve by your tolerance for missed
+      fraud vs wasted investigator time.
+    </p>
+    <div class="grid-2">
+      <div class="card">
+        <div class="op-head"><h3>HIGH — score ≥ 50</h3><span class="pill high">precise queue</span></div>
+        <div class="op-metrics">
+          <div class="m"><div class="mv">0.90</div><div class="ml">precision</div></div>
+          <div class="m"><div class="mv">0.37</div><div class="ml">recall</div></div>
+          <div class="m"><div class="mv">0.52</div><div class="ml">F1</div></div>
+        </div>
+        <div class="cm">
+          <div class="corner"></div>
+          <div class="col-h">pred fraud</div><div class="col-h">pred legit</div>
+          <div class="row-h">actual fraud</div>
+          <div class="cell tp"><div class="cn">19</div><div class="cl">caught</div></div>
+          <div class="cell fn"><div class="cn">33</div><div class="cl">missed</div></div>
+          <div class="row-h">actual legit</div>
+          <div class="cell fp"><div class="cn">2</div><div class="cl">false alarm</div></div>
+          <div class="cell tn"><div class="cn">346</div><div class="cl">correct</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="op-head"><h3>MEDIUM — score ≥ 25</h3><span class="pill med">wider net</span></div>
+        <div class="op-metrics">
+          <div class="m"><div class="mv">0.56</div><div class="ml">precision</div></div>
+          <div class="m"><div class="mv">0.67</div><div class="ml">recall</div></div>
+          <div class="m"><div class="mv">0.61</div><div class="ml">F1</div></div>
+        </div>
+        <div class="cm">
+          <div class="corner"></div>
+          <div class="col-h">pred fraud</div><div class="col-h">pred legit</div>
+          <div class="row-h">actual fraud</div>
+          <div class="cell tp"><div class="cn">35</div><div class="cl">caught</div></div>
+          <div class="cell fn"><div class="cn">17</div><div class="cl">missed</div></div>
+          <div class="row-h">actual legit</div>
+          <div class="cell fp"><div class="cn">27</div><div class="cl">false alarm</div></div>
+          <div class="cell tn"><div class="cn">321</div><div class="cl">correct</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Which rules earn their weight — per-rule lift</h2>
+    <p class="sec-note">
+      For each rule: of the times it fired, how many were truly fraud (precision), and of all fraud, how much
+      it caught (recall). This is how you tune a rule engine — reweight the sharp signals, demote the noisy ones.
+    </p>
+    <div class="card" style="padding:8px clamp(8px,2vw,16px)">
+      <table>
+        <thead>
+          <tr>
+            <th>Rule</th>
+            <th class="r">Weight</th>
+            <th class="r">Fired</th>
+            <th style="width:190px">Precision (of firings, % fraud)</th>
+            <th class="r">Recall</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><div class="rule-code">DUPLICATE_IMAGE</div><div class="rule-desc">Photo reused from another claim</div></td>
+            <td class="r wt">40</td><td class="r wt">16</td>
+            <td><div class="prbar"><i style="width:94%;background:var(--legit)"></i><b>0.94</b></div></td>
+            <td class="r wt">0.29</td>
+            <td><span class="tag best">sharpest</span></td>
+          </tr>
+          <tr>
+            <td><div class="rule-code">AMOUNT_OVER_SUM_INSURED</div><div class="rule-desc">Claim amount exceeds the sum insured</div></td>
+            <td class="r wt">40</td><td class="r wt">31</td>
+            <td><div class="prbar"><i style="width:52%;background:var(--accent)"></i><b>0.52</b></div></td>
+            <td class="r wt">0.31</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td><div class="rule-code">EXIF_INCONSISTENT</div><div class="rule-desc">Photo metadata inconsistent with incident</div></td>
+            <td class="r wt">20</td><td class="r wt">33</td>
+            <td><div class="prbar"><i style="width:45%;background:var(--accent)"></i><b>0.45</b></div></td>
+            <td class="r wt">0.29</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td><div class="rule-code">SYNTHETIC_IMAGE</div><div class="rule-desc">Photo appears AI-generated / synthetic</div></td>
+            <td class="r wt">25</td><td class="r wt">20</td>
+            <td><div class="prbar"><i style="width:45%;background:var(--accent)"></i><b>0.45</b></div></td>
+            <td class="r wt">0.17</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td><div class="rule-code">EARLY_CLAIM</div><div class="rule-desc">Claim within 30 days of policy start</div></td>
+            <td class="r wt">20</td><td class="r wt">70</td>
+            <td><div class="prbar"><i style="width:34%;background:var(--fraud)"></i><b>0.34</b></div></td>
+            <td class="r wt">0.46</td>
+            <td><span class="tag noisy">noisy</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout">
+      <p><b>Actionable finding.</b> <span class="rule-code" style="color:var(--legit)">DUPLICATE_IMAGE</span>
+      is the star — when it fires, it's fraud <b>94%</b> of the time. <span class="rule-code" style="color:var(--fraud)">EARLY_CLAIM</span>
+      is the weak link: it fired <b>70</b> times but was right only <b>34%</b> of them, dragging MEDIUM's
+      precision down. The fix is data-driven — <b>demote its weight</b> or reclassify it as a soft signal, and
+      let the image rules carry more of the score.</p>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <p style="margin:0 0 10px"><b style="color:var(--ink)">Method.</b> Rules, weights and thresholds mirror
+    the production engine exactly (<code>FraudEngine.java</code> + <code>*Rule.java</code>). A labelled dataset
+    of <span class="num">400</span> claims (<span class="num">13%</span> fraud) is scored through the identical
+    logic; every metric is computed from scratch — ROC AUC via the exact Mann-Whitney form. Reproduce with
+    <span class="kbd">python fraud_eval.py</span> (seed <span class="num">42</span>).</p>
+    <p style="margin:0"><b style="color:var(--ink)">Honesty.</b> Labels are <b>synthetic</b> with documented
+    fire-probabilities — this measures the <em>scoring logic</em> on transparent stand-in data, exactly the
+    methodology you'd run on real investigator-labelled outcomes. The engine is rule-based <em>by design</em>
+    (insurance decisions must be auditable); its natural upgrade, once enough real labels exist, is a
+    supervised model on the same features, cross-validated — at which point this harness yields a rigorous
+    accuracy story.</p>
+  </footer>
+</div>

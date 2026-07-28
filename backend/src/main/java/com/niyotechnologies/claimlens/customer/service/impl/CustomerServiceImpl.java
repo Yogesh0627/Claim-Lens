@@ -2,6 +2,9 @@ package com.niyotechnologies.claimlens.customer.service.impl;
 
 import com.niyotechnologies.claimlens.common.exception.BusinessException;
 import com.niyotechnologies.claimlens.common.exception.NotFoundException;
+import com.niyotechnologies.claimlens.common.response.PagedResponse;
+import com.niyotechnologies.claimlens.common.util.PageRequests;
+import org.springframework.data.domain.Sort;
 import com.niyotechnologies.claimlens.customer.dto.request.CreateCustomerRequest;
 import com.niyotechnologies.claimlens.customer.dto.request.UpdateCustomerRequest;
 import com.niyotechnologies.claimlens.customer.dto.response.CustomerResponse;
@@ -52,7 +55,17 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('CUSTOMER_READ')")
-    public List<CustomerResponse> getCustomers() {
+    public PagedResponse<CustomerResponse> getCustomers(int page, int size) {
+        var pageable = PageRequests.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
+        return PagedResponse.from(
+                customerRepository.findAllByIsDeletedFalse(pageable),
+                customerMapper::toResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('CUSTOMER_READ')")
+    public List<CustomerResponse> getCustomerOptions() {
         return customerMapper.toResponseList(customerRepository.findAllByIsDeletedFalse());
     }
 

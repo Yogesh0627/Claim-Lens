@@ -54,6 +54,9 @@ public class AppUser extends TenantAwareEntity {
     @Column(name = "home_branch_id")
     private Long homeBranchId;
 
+    @Column(name = "region_id")
+    private Long regionId;
+
     @Column(name = "reporting_manager_id")
     private Long reportingManagerId;
 

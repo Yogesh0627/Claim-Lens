@@ -2,6 +2,8 @@ import { http } from "@/lib/http";
 import type {
   ApiResponse,
   CreateUserRequest,
+  PagedResponse,
+  PageParams,
   UpdateUserRequest,
   UserResponse,
 } from "@/lib/types";
@@ -9,10 +11,14 @@ import type {
 const unwrap = <T>(p: Promise<{ data: ApiResponse<T> }>) => p.then((r) => r.data.data);
 
 export const userService = {
-  /** Optionally filter by a single role code, e.g. "INVESTIGATOR". */
-  list: (roleCode?: string) =>
+  /** Paged directory listing for the Users screen. */
+  list: (params: PageParams = {}) =>
+    unwrap(http.get<ApiResponse<PagedResponse<UserResponse>>>("/users", { params })),
+
+  /** All users (unpaged), optionally filtered by role code (e.g. "INVESTIGATOR") — for pickers. */
+  options: (roleCode?: string) =>
     unwrap(
-      http.get<ApiResponse<UserResponse[]>>("/users", {
+      http.get<ApiResponse<UserResponse[]>>("/users/options", {
         params: roleCode ? { role: roleCode } : undefined,
       }),
     ),

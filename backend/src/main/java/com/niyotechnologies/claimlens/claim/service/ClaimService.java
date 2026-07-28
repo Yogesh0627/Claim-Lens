@@ -3,10 +3,10 @@ package com.niyotechnologies.claimlens.claim.service;
 import com.niyotechnologies.claimlens.claim.dto.request.AssignClaimRequest;
 import com.niyotechnologies.claimlens.claim.dto.request.ClaimDecisionRequest;
 import com.niyotechnologies.claimlens.claim.dto.request.CreateClaimRequest;
+import com.niyotechnologies.claimlens.claim.dto.request.ReassignClaimRequest;
 import com.niyotechnologies.claimlens.claim.dto.request.RequestInformationRequest;
 import com.niyotechnologies.claimlens.claim.dto.response.ClaimResponse;
-
-import java.util.List;
+import com.niyotechnologies.claimlens.common.response.PagedResponse;
 
 public interface ClaimService {
 
@@ -27,6 +27,9 @@ public interface ClaimService {
 
     ClaimResponse autoAssign(Long claimId);
 
+    /** Move a claim already under investigation to a different investigator (null id = auto-pick). */
+    ClaimResponse reassign(Long claimId, ReassignClaimRequest request);
+
     ClaimResponse decide(Long claimId, ClaimDecisionRequest request);
 
     /** Investigator asks the policyholder for more info → claim moves to WAITING_FOR_CUSTOMER. */
@@ -42,5 +45,5 @@ public interface ClaimService {
 
     ClaimResponse getClaim(Long claimId);
 
-    List<ClaimResponse> getClaims();
+    PagedResponse<ClaimResponse> getClaims(int page, int size);
 }

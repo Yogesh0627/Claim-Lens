@@ -1,5 +1,10 @@
 import { http } from "@/lib/http";
-import type { ApiResponse, CreateFraudRulesetRequest, FraudRulesetResponse } from "@/lib/types";
+import type {
+  ApiResponse,
+  CreateFraudRulesetRequest,
+  FraudRuleCatalogEntry,
+  FraudRulesetResponse,
+} from "@/lib/types";
 
 const unwrap = <T>(p: Promise<{ data: ApiResponse<T> }>) => p.then((r) => r.data.data);
 
@@ -10,4 +15,7 @@ export const rulesetService = {
     unwrap(http.post<ApiResponse<FraudRulesetResponse>>("/rulesets/fraud", body)),
   activate: (id: number) =>
     unwrap(http.post<ApiResponse<FraudRulesetResponse>>(`/rulesets/fraud/${id}/activate`, {})),
+  /** The implemented fraud rules an admin can pick from (avoids typing free-text codes). */
+  ruleCatalog: () =>
+    unwrap(http.get<ApiResponse<FraudRuleCatalogEntry[]>>("/rulesets/fraud/rule-catalog")),
 };

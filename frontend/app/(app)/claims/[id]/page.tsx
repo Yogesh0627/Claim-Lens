@@ -51,11 +51,62 @@ function Overview({ claim }: { claim: ClaimResponse }) {
       <Card>
         <CardContent className="divide-y pt-6">
           <DetailRow label="Claim number" value={claim.claimNumber} />
+          <DetailRow
+            label="Customer"
+            value={
+              claim.customerName
+                ? `${claim.customerName}${claim.customerNumber ? ` · ${claim.customerNumber}` : ""}`
+                : `#${claim.customerId}`
+            }
+          />
+          <DetailRow
+            label="Raised by"
+            value={
+              claim.raisedByName ? (
+                <span className="inline-flex items-center gap-2">
+                  {claim.raisedByName}
+                  {claim.raisedByCode ? (
+                    <span className="text-muted-foreground">· {claim.raisedByCode}</span>
+                  ) : null}
+                  {claim.raisedByStaff ? (
+                    <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                      Staff
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground rounded border px-1.5 py-0.5 text-[10px] font-medium">
+                      Self-service
+                    </span>
+                  )}
+                </span>
+              ) : (
+                "—"
+              )
+            }
+          />
+          <DetailRow
+            label="Investigating officer"
+            value={
+              claim.investigatingOfficerName ? (
+                <span className="inline-flex items-center gap-2">
+                  {claim.investigatingOfficerName}
+                  {claim.investigatingOfficerCode ? (
+                    <span className="text-muted-foreground">· {claim.investigatingOfficerCode}</span>
+                  ) : null}
+                </span>
+              ) : (
+                <span className="text-muted-foreground">Not yet assigned</span>
+              )
+            }
+          />
           <DetailRow label="Policy number" value={claim.policyNumber ?? "—"} />
           <DetailRow label="Vehicle" value={claim.vehicleRegistrationNumber ?? "—"} />
           <DetailRow label="Incident date" value={formatDate(claim.incidentDate)} />
           <DetailRow label="Claim amount" value={formatCurrency(claim.claimAmount)} />
-          <DetailRow label="Product version" value={claim.insuranceProductVersionId ?? "—"} />
+          <DetailRow label="Product" value={claim.productName ?? "—"} />
+          <DetailRow
+            label="Product version"
+            value={claim.productVersionNumber != null ? `v${claim.productVersionNumber}` : "—"}
+          />
           <DetailRow
             label="Submitted"
             value={claim.submittedAt ? formatDateTime(claim.submittedAt) : "Not submitted"}

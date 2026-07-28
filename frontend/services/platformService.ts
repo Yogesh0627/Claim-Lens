@@ -5,6 +5,7 @@ import type {
   InsuranceCompanyResponse,
   OnboardTenantRequest,
   PlatformAnalyticsResponse,
+  UpdateTenantRequest,
 } from "@/lib/types";
 
 const unwrap = <T>(p: Promise<{ data: ApiResponse<T> }>) => p.then((r) => r.data.data);
@@ -17,11 +18,22 @@ export const platformService = {
   onboard: (body: OnboardTenantRequest) =>
     unwrap(http.post<ApiResponse<InsuranceCompanyResponse>>("/platform/tenants", body)),
 
+  update: (tenantId: number, body: UpdateTenantRequest) =>
+    unwrap(http.put<ApiResponse<InsuranceCompanyResponse>>(`/platform/tenants/${tenantId}`, body)),
+
   setStatus: (tenantId: number, status: string) =>
     unwrap(
       http.post<ApiResponse<InsuranceCompanyResponse>>(`/platform/tenants/${tenantId}/status`, {
         status,
       }),
+    ),
+
+  remove: (tenantId: number) =>
+    unwrap(http.delete<ApiResponse<InsuranceCompanyResponse>>(`/platform/tenants/${tenantId}`)),
+
+  restore: (tenantId: number) =>
+    unwrap(
+      http.post<ApiResponse<InsuranceCompanyResponse>>(`/platform/tenants/${tenantId}/restore`, {}),
     ),
 
   impersonate: (tenantId: number) =>

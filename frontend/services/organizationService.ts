@@ -32,6 +32,9 @@ export const organizationService = {
   // branches (nested under a region)
   listBranches: (regionId: number) =>
     unwrap(http.get<ApiResponse<BranchResponse[]>>(`/organizations/regions/${regionId}/branches`)),
+  /** All branches in the tenant — for a flat "home branch" picker. */
+  listAllBranches: () =>
+    unwrap(http.get<ApiResponse<BranchResponse[]>>("/organizations/branches")),
   createBranch: (regionId: number, body: CreateBranchRequest) =>
     unwrap(
       http.post<ApiResponse<BranchResponse>>(`/organizations/regions/${regionId}/branches`, body),

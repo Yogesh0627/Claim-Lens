@@ -119,18 +119,20 @@ public class AuthServiceImpl implements AuthService {
             throw new UnauthorizedException("UNAUTHENTICATED", "No authenticated user");
         }
         // role/permission are global (no @TenantId) — safe to read pre-tenant-scope.
-        String roleCode = roleRepository.findByIdAndIsDeletedFalse(principal.roleId())
-                .map(role -> role.getCode())
-                .orElse(null);
+        var role = roleRepository.findByIdAndIsDeletedFalse(principal.roleId()).orElse(null);
+        AppUser user = appUserRepository.findByIdAndIsDeletedFalse(principal.userId()).orElse(null);
         return new MeResponse(
                 principal.userId(),
                 principal.tenantId(),
                 principal.roleId(),
-                roleCode,
+                role == null ? null : role.getCode(),
+                role == null ? null : role.getName(),
+                user == null ? null : user.getFirstName(),
+                user == null ? null : user.getLastName(),
                 principal.email(),
                 principal.employeeCode(),
                 principal.customerId(),
-                permissionService.permissionCodesForRole(principal.roleId()));
+                permissionService.permissionCodesForRole(principal.tenantId(), principal.roleId()));
     }
 
     @Override

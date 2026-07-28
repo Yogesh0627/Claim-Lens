@@ -1,0 +1,12 @@
+{
+  "name": "Default (shipped)",
+  "weights": {
+    "DUPLICATE_IMAGE": 40,
+    "AMOUNT_OVER_SUM_INSURED": 40,
+    "SYNTHETIC_IMAGE": 25,
+    "EARLY_CLAIM": 20,
+    "EXIF_INCONSISTENT": 20
+  },
+  "medium": 25,
+  "high": 50
+}

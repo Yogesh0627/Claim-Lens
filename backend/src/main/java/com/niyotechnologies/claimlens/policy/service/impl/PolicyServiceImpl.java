@@ -2,6 +2,9 @@ package com.niyotechnologies.claimlens.policy.service.impl;
 
 import com.niyotechnologies.claimlens.common.exception.BusinessException;
 import com.niyotechnologies.claimlens.common.exception.NotFoundException;
+import com.niyotechnologies.claimlens.common.response.PagedResponse;
+import com.niyotechnologies.claimlens.common.util.PageRequests;
+import org.springframework.data.domain.Sort;
 import com.niyotechnologies.claimlens.customer.repository.CustomerRepository;
 import com.niyotechnologies.claimlens.policy.dto.request.CreatePolicyRequest;
 import com.niyotechnologies.claimlens.policy.dto.request.VehicleRequest;
@@ -124,12 +127,25 @@ public class PolicyServiceImpl implements PolicyService {
     @Override
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('POLICY_READ')")
-    public List<PolicyResponse> getPolicies() {
+    public PagedResponse<PolicyResponse> getPolicies(int page, int size) {
+        var pageable = PageRequests.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
+        return PagedResponse.from(
+                policyRepository.findAllByIsDeletedFalse(pageable), this::toResponseWithVehicle);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('POLICY_READ')")
+    public List<PolicyResponse> getPolicyOptions() {
         return policyRepository.findAllByIsDeletedFalse().stream()
-                .map(policy -> policyMapper.toResponse(policy,
-                        vehicleRepository.findAllByInsurancePolicyIdAndIsDeletedFalse(policy.getId())
-                                .stream().findFirst().orElse(null)))
+                .map(this::toResponseWithVehicle)
                 .toList();
+    }
+
+    private PolicyResponse toResponseWithVehicle(InsurancePolicy policy) {
+        return policyMapper.toResponse(policy,
+                vehicleRepository.findAllByInsurancePolicyIdAndIsDeletedFalse(policy.getId())
+                        .stream().findFirst().orElse(null));
     }
 
     private InsuredVehicle toVehicle(VehicleRequest request, Long policyId) {

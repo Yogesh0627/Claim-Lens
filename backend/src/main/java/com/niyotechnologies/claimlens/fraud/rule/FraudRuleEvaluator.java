@@ -13,5 +13,13 @@ public interface FraudRuleEvaluator {
     /** Stable code that a fraud_rule row references (e.g. AMOUNT_OVER_SUM_INSURED). */
     String code();
 
+    /** Human-readable description, surfaced in the rule-catalog so the config UI can list real rules. */
+    String description();
+
+    /** Suggested starting weight when adding this rule to a ruleset (the admin can override it). */
+    default int defaultWeight() {
+        return 10;
+    }
+
     boolean triggers(Claim claim, InsurancePolicy policy);
 }

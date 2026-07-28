@@ -8,6 +8,11 @@ public record UpdateUserRequest(
         String lastName,
         String phone,
         @NotBlank String roleCode,
-        @NotBlank String status
+        @NotBlank String status,
+        Long departmentId,
+        Long designationId,
+        Long regionId,
+        Long homeBranchId,
+        java.util.List<Long> branchIds
 ) {
 }

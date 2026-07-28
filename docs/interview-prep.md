@@ -1070,7 +1070,7 @@ new security boundary.
 
 ---
 
-## Current state — what's actually built and proven (99 backend tests green)
+## Current state — what's actually built and proven (103 backend tests green)
 
 The phase headings above carry the test count *at the time*, so they climb: 35 → 44 → 57 → 59 → 63.
 Where it stands now:
@@ -1082,7 +1082,7 @@ Where it stands now:
 | Security | Auth rate limiting (per IP) + cost limiting on AI/uploads (per user), invitation & reset tokens |
 | Lifecycle | Two-way information requests — request → customer responds → auto re-open + reprocess |
 | Comms | Branded HTML emails + an attached PDF claim report with the photos embedded |
-| Tests | **99** (3 skipped, all env-gated: a live-Vision check and two manual email senders) |
+| Tests | **103** (3 skipped, all env-gated: a live-Vision check and two manual email senders) |
 
 **Proven against real infrastructure, not just locally:** pgvector runs on Neon (extension, HNSW
 index, ANN query, and a real ingest → ask round trip), the Redis cache runs on Upstash, and both
@@ -1101,7 +1101,7 @@ Gemini embeddings and chat return real answers with citations.
 
 ---
 
-## Live end-to-end testing session — four bugs the test suite never caught (99 backend tests green)
+## Live end-to-end testing session — eight bugs the test suite never caught (103 backend tests green)
 
 Everything below was found by **driving the running app**, not by reading code or running tests. That
 is the lesson in itself: 92 green tests, a clean deploy, and the first ten minutes of clicking through
@@ -1211,7 +1211,97 @@ The last row matters most: asked about cover that isn't in the document, it **de
 inventing a plausible number**. Tenant isolation held on the AI path too — asking about a product
 version belonging to another tenant returns 404, never a cross-tenant answer.
 
-### Regression tests added (6 new, in `TenantIsolationIntegrationTest`)
+### 5. Every wrong URL returned 500 instead of 404 (found during profile-by-profile UI testing)
+
+While sweeping the Tenant Admin surface, `GET /api/v1/rulesets` (a path that doesn't exist — the real
+one is `/rulesets/fraud`) returned **500**, not 404. Cause: Spring raises `NoResourceFoundException`
+for an unmapped route, and the `@ExceptionHandler(Exception.class)` catch-all grabbed it and reported
+`INTERNAL_SERVER_ERROR`. So **any** typo'd or renamed endpoint told the client "the server broke."
+Added a handler returning `404 RESOURCE_NOT_FOUND`. Same family as bug #2: a catch-all that answers
+500 masks client mistakes as server faults — every framework exception that means "you asked wrong"
+(bad type, bad path, bad body) deserves its own 4xx handler ahead of the catch-all.
+
+This one is worth the story because of *how* it was found: not by a test (tests hit the paths that
+exist), but by fat-fingering the URL during exploratory testing. The bug lived precisely in the space
+the test suite can't reach — requests for things that aren't there.
+
+### 6. A claim could be assigned to someone who can't investigate (found testing the Investigation Manager)
+
+The Investigation Manager's core power is `CLAIM_ASSIGN`. Testing it, I assigned a claim to the
+**platform admin** — a user with no `CLAIM_INVESTIGATE` permission — and it returned 200 and moved the
+claim to `UNDER_INVESTIGATION`. `assign()` checked only that the target user *existed*
+(`findByIdAndIsDeletedFalse`), never that they could investigate. A claim could be stranded
+`UNDER_INVESTIGATION` with an assignee (auditor, platform admin, even a customer) who has no way to act
+on it. Fix: resolve the assignee's role permissions via the existing `PermissionService` and reject
+with `400 NOT_AN_INVESTIGATOR` unless they hold `CLAIM_INVESTIGATE`. The subtlety worth saying out
+loud: the endpoint's own `@PreAuthorize('CLAIM_ASSIGN')` guards *who may assign*; this is a separate
+axis — *who may receive* an assignment — and authorization annotations don't express it.
+
+### 7. Malformed request bodies returned 500 (found via a wrong enum value)
+
+Posting `{"decision":"NONSENSE"}` to the decision endpoint returned **500**. An unknown enum constant
+(or any unparseable JSON) raises `HttpMessageNotReadableException`, which — like bugs #2 and #5 — the
+catch-all turned into a server error. That's three distinct framework exceptions
+(`MethodArgumentTypeMismatch`, `NoResourceFound`, `HttpMessageNotReadable`) that all mean "the client
+sent something wrong" and all defaulted to 500. Added a handler returning `400 MALFORMED_REQUEST_BODY`
+(without echoing the raw Jackson message, which leaks type/package internals). The consolidated lesson
+for the whole session: **a `@ExceptionHandler(Exception.class)` catch-all is a 500 factory** — it
+silently reclassifies every unmapped client error as a server fault. The fix each time was one small
+handler; the discipline is to add them proactively for the known 4xx-worthy framework exceptions
+rather than discover them one 500 at a time.
+
+### 8. `FRAUD_READ` was a dead permission — fraud scores leaked to every claim-reader ⭐
+
+Testing the Investigator, I checked the `/claims/{id}/processing` endpoint (where the fraud score
+lives) as **Customer Support** — a role deliberately *not* granted `FRAUD_READ`. It returned the full
+`{score: 72, riskLevel: HIGH, explanation: "…"}`. Investigation showed `FRAUD_READ` — seeded in V14,
+described "Read fraud scores," granted to exactly three investigation roles, and present in the
+frontend permission constants — was **enforced in exactly zero places**. `grep FRAUD_READ src/main`
+returns nothing. The endpoint that exposes fraud is gated by the much broader `CLAIM_READ`.
+
+So the permission built to protect the fraud assessment did nothing, and a sensitive signal ("the
+system flagged this claim as suspicious, 72/HIGH") was visible to Customer Support, Adjusters — anyone
+with `CLAIM_READ`. Fix: gate the fraud block specifically on `FRAUD_READ` inside the query service,
+while keeping processing *status* (OCR/analysis progress) under `CLAIM_READ`. `FRAUD_READ` holders see
+the score; others get the same payload with `fraud: null`. Verified across five roles.
+
+Two things make this the strongest security story of the session: (1) a permission existing is not a
+permission enforced — a seeded, documented, role-mapped permission checked nowhere is worse than no
+permission, because it *looks* like protection in every audit of the role table; and (2) the leak was
+on a **different endpoint** than the obvious one — the claim detail correctly omits fraud, but the
+processing view (a secondary surface) exposed it. Coarse-grained `CLAIM_READ` on an endpoint that
+returns fine-grained sensitive data is where these leaks live.
+
+### The profile-by-profile sweep — what each role proved
+
+All 8 demo roles were driven end-to-end (UI via Playwright + API matrix) against the running app:
+
+| Role | Verified | Bugs |
+|---|---|---|
+| Platform Admin | cross-tenant analytics, onboard, suspend, **impersonation** (audit-preserving) | #1 |
+| Tenant Admin | user CRUD + login, org, correctly can't mint a platform admin | #5 |
+| Investigation Manager | assigns (valid investigators only), can't decide/create | #6, #7 |
+| Investigator | reads assigned claim, fraud (now gated), notes, coverage, decides | #8 |
+| Customer | own claims only; **IDOR blocked both directions** (read + file); no staff access | none |
+| Customer Support | raises claims for customers; fraud hidden; no assign/decide/user-mgmt | none |
+| Employee/Adjuster | policies + coverage only; blocked from all claim ops | none |
+| Auditor | analytics + audit + org reads; blocked from claims/processing/writes | none |
+
+The lower-privilege boundaries (Customer, Support, Adjuster, Auditor) were **clean** — the RBAC model
+is sound where it's enforced. Every bug clustered in the *staff* surface, and the two most serious
+(#1 cross-tenant company, #8 dead FRAUD_READ) were both **"a guard that looks present but isn't"** —
+exactly the failure the profile sweep is designed to catch and the test suite isn't.
+
+### One design observation (not a bug): validation runs before authorization
+
+Repeatedly, an unauthorized write with an incomplete body returned **400, not 403** — Spring runs the
+controller's `@Valid` before the service-layer `@PreAuthorize`. With a *valid* body the same request
+correctly 403s (verified for every role). It's standard Spring ordering and not a security hole (the
+operation is still denied), but it does let an unauthenticated-for-this caller probe validation rules.
+Worth stating in an interview as a known, accepted trade-off of authorizing at the service layer
+rather than the controller — the codebase's deliberate choice (controllers stay thin, logic-free).
+
+### Regression tests added (10 new: 7 `TenantIsolation`, 2 `ClaimWorkflow`, 1 `ProcessingQuery`)
 
 Tenant admin can't list all companies (403) · auditor can't either (403) · can't read another tenant's
 company (404) · can't overwrite it (404 **and the row is asserted unchanged** — a 404 that still
@@ -1227,3 +1317,413 @@ is testing is a false negative — the payload must be valid enough to get there
 *Maintenance note: extend this doc every phase. When we make a decision, add the **why** and the
 **trade-off**. When we fix a bug, add a war story to Part 10 — those are the most memorable interview
 answers.*
+
+---
+
+## Platform-admin & tenant-admin profile sweep — the "shared workspace" insight (verified in-browser)
+
+**The architectural point that makes this worth an interview answer:** the app has exactly two route
+groups — `app/platform/*` (platform-admin only: the cross-tenant tenants list) and `app/(app)/*` (the
+**tenant workspace**: dashboard, claims, customers, policies, products, rulesets, notifications, and
+the whole `organization/*` administration surface). A platform admin's **"Open workspace (impersonate)"**
+mounts the *same* `(app)` components under a chosen tenant's context; a tenant admin logs straight into
+them. There is **one** implementation of every workspace screen, not two. So every fix landed during the
+platform-admin pass — inline field validation, `cursor-pointer` on all actionable controls, shadcn
+tooltips on icon buttons, widened dialogs (`sm:max-w-2xl`), the sidebar active/hover gap, the
+notification-bell unread refetch, and the **per-tenant RBAC editor** — applies to the tenant admin
+automatically, because it *is* the tenant admin's screen. This is the payoff of putting tenancy in the
+JWT + `@TenantId` and keeping the UI tenant-agnostic: the workspace doesn't know or care whether the
+person driving it arrived by login or by impersonation.
+
+**What was driven end-to-end (Playwright, real backend):**
+- Demo-account sign-in — every card has a pointer + role tooltip.
+- Platform overview + **tabbed tenant CRUD** (Active/Suspended/Archived/Deleted with live counts),
+  icon actions each with a tooltip, all pointer-cursored.
+- Onboard-tenant: a duplicate code correctly surfaces as a **top-level toast** (`TENANT_CODE_EXISTS`),
+  not an inline field error — the deliberate split: *business-rule* violations → toast, *field-shape*
+  violations → inline. (The tenant DTO carries only `@NotBlank`, which the client blocks, so it never
+  produces an inline error — the inline path is proven on a form that has length validators.)
+- Inline validation proven in-browser on the **region** form: a 300-char name renders
+  *"Region name cannot exceed 255 characters"* directly under the field — the message coming straight
+  from the backend `@Size` validator via `useMutation.fieldErrors` → `<FieldError>`, no hardcoded copy.
+- **Per-tenant RBAC editor** in the workspace: every role editable, **Platform Admin is `locked`**
+  (safety rail), the "applies to everyone here on their next request, doesn't affect other tenants,
+  clearing resets to platform default" contract stated in the dialog, checkboxes grouped by module.
+- Users list: 9 users with employee codes; the Customer login shows an **auto-generated** code
+  (`DEMO-CUR`) — confirming the "customers are policyholders, not staff, so the code is synthesized"
+  rule.
+
+**Honest scope statement (what "tenant admin complete" does and doesn't mean):** the tenant admin's
+**administration** surface — users, roles/permissions, regions/branches, departments, designations,
+customers — is complete *and shared*, so it's genuinely done for both profiles. A full tenant-admin
+sign-off still means walking the **operational** surface from that seat (the claims lifecycle,
+policies, products, rulesets), which is the natural next profile pass rather than something the
+administration sweep already covered.
+
+---
+
+## Tenant-admin operational pass — the "id shown as version number" bug (103 tests green)
+
+Walked the full tenant-admin **operational** surface in the browser (claims list + the 6-tab claim
+detail, policies, products, rulesets). Everything worked — the claim's Processing tab showed a live
+fraud score of **72 (High)** with a plain-language reason, the policy detail carried the enriched
+policyholder/product/vehicle/**wording-PDF**, the product's Knowledge dialog reported *"11 chunks
+ingested · gemini-embedding-001"*, and the ruleset builder's rule dropdown listed all five catalog
+rules including the three image-fraud ones. One real bug surfaced.
+
+**The bug: a foreign-key id was being rendered as if it were the version number.** The claim Overview
+showed *"Product version: 3"* and the Knowledge dialog titled itself *"Policy knowledge — version 3"*
+— but `3` is the `insurance_product_version_id` (a PK), and the product `DEMO_MOTOR` has exactly one
+version, **v1**. There is no "version 3." A user reading the claim would believe it was adjudicated
+against a version that doesn't exist. The **policy** page had it right all along
+(`v{productVersionNumber}` → "v1") because `PolicyMapper` resolves the id into a name + number; the
+claim and the dialog were displaying the raw id instead.
+
+**Why it matters (and why it's subtle):** the underlying *pinning* was correct — claim and policy
+both point at version id 3 (D5 holds), so no test caught it and the data was sound. The defect was
+purely in **presentation**: an internal identifier leaking into a human-facing "version N" label,
+where N happens to look like a plausible version number. This is the display-layer cousin of the
+"guard that looks present but isn't" theme — here it's *"a number that looks meaningful but isn't."*
+
+**The fix (DRY, mirrors the policy path):** enrich `ClaimResponse` with `productName` +
+`productVersionNumber`, resolved in `ClaimMapper` by injecting the product/version repositories and
+looking up the pinned version — exactly the pattern `PolicyMapper` already used, so both surfaces now
+resolve ids identically. The claim Overview shows *"Demo Motor Comprehensive"* + *"v1"*; the Knowledge
+dialog takes the version *number* (which the product page already had in the row) instead of the id.
+Signature of `toResponse(Claim, warnings)` was left unchanged, so all nine call sites needed no edit.
+Verified in-browser and with the full suite: **103 passing.**
+
+**Interview framing — the general lesson:** never let a database id reach a label that implies domain
+meaning. If the UI says "version N", "claim #N", "case N", N must be the *business* number, not the
+row's PK — resolve it in the mapper, once, so every caller is enriched the same way and no screen can
+drift. The policy page and the claim page disagreeing for months is exactly what happens when that
+resolution lives in one mapper but not its sibling.
+
+---
+
+## Customer (Policyholder) portal — closing the information-request dead-end (features batch)
+
+The portal had a **dead end in the core loop**: when an investigator clicked "Request info", the claim
+moved to `WAITING_FOR_CUSTOMER`, the customer's status line said *"please check your messages"* — but
+there was no messages area, and the document-upload UI was gated behind `status === "DRAFT"`. The
+backend already re-opened the claim when the customer uploaded a document (`recordCustomerResponseInternal`),
+so the *server* supported the response; the *UI* gave the customer no way to trigger it. The loop
+looked complete and wasn't.
+
+Three features were batched to make the policyholder self-service actually round-trip:
+
+1. **Respond to an information request.** When `WAITING_FOR_CUSTOMER`, an amber callout surfaces the
+   investigator's actual message (carried on the transition into that status, in `claim_status_history`),
+   and document upload is enabled in that state too — the button becomes "Upload response," and on
+   upload the claim re-opens server-side and the page refreshes to `UNDER_INVESTIGATION`.
+
+2. **Claim progress timeline.** A new ownership-scoped `GET /portal/claims/{id}/timeline` surfaces the
+   status history (which was written all along but never read by any endpoint) as a customer-friendly
+   tracker — Draft → Submitted → Under Investigation → Info requested → …, with notes and timestamps.
+
+3. **Download my policy wording.** "My policies" was a read-only card with no actions. A policyholder
+   can now download the wording PDF for the product version their policy is pinned to. The wrinkle:
+   product-document read is gated by `PRODUCT_READ`, which a customer (PORTAL_* only) doesn't hold. So
+   rather than loosen that permission, the portal service does its **own** ownership check (policy →
+   belongs to this customer → its pinned version) and then calls a new **internal**
+   `ProductDocumentService.listForVersionInternal` / `downloadForVersionInternal` that skips the staff
+   gate. Downloads verify the requested document actually belongs to the customer's version (404
+   otherwise), so a guessed id can't reach another version's file.
+
+**Interview framing — two reusable ideas.** (a) *A backend capability with no UI trigger is not a
+feature.* The reopen-on-upload logic existed and was even unit-tested, yet the product had a dead end,
+because no screen could reach it — the profile-by-profile UI sweep is what surfaces that class of gap
+the test suite structurally can't. (b) *Cross-permission reads belong behind an ownership check, not a
+widened role.* The clean way to let a customer read a product document was a second, narrower gate
+(ownership) plus an internal method, never granting the customer `PRODUCT_READ` — which would have
+opened the entire product catalog to every policyholder.
+
+---
+
+## Global AI coverage assistant — the RAG on every screen, for every role (103 tests green)
+
+The RAG assistant existed but was buried on one staff screen (the claim → Coverage tab), and the
+**customer couldn't reach it at all** (the CUSTOMER role holds only PORTAL_* permissions, no
+COVERAGE_READ). A policyholder had no way to ask "is windshield damage covered?" about their own
+policy. Closed that gap with a **floating "Ask AI" assistant present on every screen of both the staff
+app and the customer portal**, answering coverage & policy-wording questions from the RAG with
+citations.
+
+**Two product/security decisions drove the design:**
+
+1. **Fraud rules are deliberately NOT in scope.** The obvious over-reach is "let everyone ask the AI
+   anything, including how fraud scoring works." That hands a fraudster the evasion playbook — so the
+   assistant answers *only* coverage/wording, and fraud rulesets stay on the staff Rulesets screen.
+   The lesson: an AI assistant's *knowledge boundary* is a security control, not just a UX choice.
+
+2. **"Every role" without widening permissions.** Coverage explanations are non-sensitive product
+   wording, so `POST /coverage/ask` was relaxed from `hasAuthority('COVERAGE_READ')` to
+   `isAuthenticated() and !hasAuthority('PORTAL_CLAIM_READ')` — i.e. *any staff member, but not a
+   customer* (the `!PORTAL_CLAIM_READ` clause cleanly identifies "not a customer," since only that
+   role has portal perms). Customers instead go through a separate ownership-scoped
+   `POST /portal/coverage/ask {policyId, question}` that resolves the product version **from their own
+   policy server-side** — so a policyholder can only ever ask about coverage they actually hold, and
+   never supplies a version id. Verified: a customer hitting the staff endpoint gets **403** before any
+   LLM call.
+
+**The shape:** one role-agnostic `<AiAssistant>` component (a floating button + right-side Sheet) that
+knows nothing about roles — it takes a `loadContexts()` and an `ask()` and renders a picker + chat +
+citations. Two thin wrappers supply the difference: the customer wrapper lists *their policies* and
+asks via the portal endpoint; the staff wrapper lists *products with ingested wording*
+(`GET /coverage/products`) and asks via the staff endpoint. Same UI, different data + guard — no
+role logic in the shared component.
+
+**Quota reality (stated, not hidden):** Gemini free tier caps chat generation at 20/day. An assistant
+on every screen amplifies usage, so the panel degrades gracefully — the model's honest "the wording
+doesn't address this" and any 429 both surface as a normal assistant message rather than a crash.
+
+---
+
+## The missing hard validation — DUPLICATE_CLAIM_EXISTS (a real bug, found from odd demo data)
+
+A "why are so many fraud scores 0?" question turned up a genuine bug. The 0 scores themselves were
+**correct** — fraud score measures fraud *risk*, which is independent of the approve/reject decision
+(a claim can be rejected for a coverage reason with zero fraud risk, and an approved claim *should*
+be low-risk), and the engine's rules genuinely didn't fire (amount well under the sum insured, not an
+early claim, no analysed images). The engine ran; it just found nothing.
+
+But the *reason the data looked odd* was the tell: there were **six near-identical claims** — same
+policy, same vehicle, same incident date, same amount. Per the design (D13), submitting an exact open
+duplicate is supposed to be a **hard rejection** (`DUPLICATE_CLAIM_EXISTS`, "prevents accidental
+double-submit"). The `ClaimSubmissionValidator` had the other three hard checks (future date, policy
+active on loss date, claimant-is-policyholder, vehicle-matches-policy) but **not** the duplicate one —
+so nothing stopped the same claim being filed six times, whether by a fat-fingered customer or a
+fraudster.
+
+**The fix:** at submit, look up other claims for the same policy + incident date, compare on the
+**normalized** vehicle registration (so "MH 12 AB 1234" == "MH12AB1234"), exclude the claim being
+submitted, and reject if any *non-terminal* one exists. Settled claims (APPROVED/REJECTED/CLOSED)
+don't block a fresh claim — only still-open ones do, which is what "double-submit" means. Added
+`ClaimStatus.isTerminal()` for that distinction. Verified: submitting a draft that duplicates an open
+claim now returns `DUPLICATE_CLAIM_EXISTS`; a unique claim still submits; full suite 103 green.
+
+**Interview framing:** "the fraud scores look wrong" was a red herring — the scores were right, but
+chasing *why the underlying data looked that way* surfaced a missing guard the spec had called for
+all along. Cheap-looking demo-data smells are worth one level of "why" before dismissing them.
+
+---
+
+## Profile, org placement, and claim reassignment (103 tests green)
+
+Three gaps closed in one batch, plus an assignment explainer.
+
+**How investigator assignment actually works** (the question that kicked this off): after submit, OCR
+→ analysis → fraud run async; the claim then lands at `AWAITING_ASSIGNMENT` and *waits*. It is **not**
+auto-assigned. A manager (`CLAIM_ASSIGN`) then either **Auto-assigns** (the engine picks the
+least-loaded active investigator) or **Assigns** a specific one — the action itself is instant
+(straight to `UNDER_INVESTIGATION`, no accept step). The delay is the async processing + the human
+click, not the assignment.
+
+1. **Profile section** — every role now has a "My profile" dialog (from the shared user menu, so it
+   works in both the staff app and the customer portal): view identity + org placement, edit
+   name/phone, and change password (current-password-gated). A dedicated `/profile` endpoint
+   (`isAuthenticated()`, scoped to the caller's own id) rather than bloating the lightweight
+   `MeResponse` used for UI gating.
+
+2. **Department / designation / branch were saved but unused.** `AppUser` already had the FK columns;
+   nothing set, exposed, or showed them. Wired end-to-end: pickers on the create/edit user form
+   (staff only — a policyholder has no org placement), resolved to names in `UserResponse`, shown as
+   columns on the users directory and on the profile. Added a flat `GET /organizations/branches` for
+   the picker (branches were only listable per-region before).
+
+3. **Claim reassignment** — the gap surfaced while explaining assignment: once assigned, there was no
+   way to move a claim to a different investigator (`assign` only works from `AWAITING_ASSIGNMENT`).
+   Added `POST /claims/{id}/reassign` (null id = auto-pick), which retires the live assignment
+   (`REASSIGNED`), creates a new one, notifies, and records history — the claim stays
+   `UNDER_INVESTIGATION`. Also fixed a latent UX quirk: Auto-assign/Assign were shown on
+   already-assigned claims (where they'd 400); they're now gated to `AWAITING_ASSIGNMENT`, with
+   Reassign shown for `UNDER_INVESTIGATION`.
+
+**Interview framing:** #2 is the recurring "the schema supports it but no layer uses it" gap — the
+data model had `department_id`/`home_branch_id` from day one, but without form fields, response
+fields, and display it was invisible dead weight. Wiring a feature means all four layers, not just the
+column.
+
+---
+
+## Investigating officer, employee-id pickers, and full multi-branch/region placement (103 tests green)
+
+Four connected improvements to the org/assignment surface.
+
+1. **Every claim now shows its investigating officer.** The claim detail exposed who *raised* a claim
+   but not who was *assigned* to it — an investigation manager couldn't tell who owned a claim, even
+   after auto-assign. `ClaimResponse` now carries `investigatingOfficerName/Code`, resolved in
+   `ClaimMapper` from the live (ASSIGNED) `ClaimAssignment`; the Overview shows it, or "Not yet
+   assigned".
+
+2. **Assign/Reassign pickers show employee code, not email**, and the Select dropdown no longer
+   spills wider than its trigger — the shared `ui/select` default flipped from `item-aligned`
+   (content-sized) to `popper` with `w-(--radix-select-trigger-width)`, so every dropdown in the app
+   matches its trigger width.
+
+3. **Full multi-branch + region placement.** A staff user can now be assigned to a **region**
+   (new `app_user.region_id`, migration V31) and to **several branches** (the long-dormant
+   `user_branch_assignment` join table finally has an entity + repo), with one flagged home/primary.
+   Wired through create/edit (region picker + branch checkboxes), `UserResponse`, and the profile
+   ("Region", "Home branch (New Delhi)", "Branches: …").
+
+**Migration war story worth keeping:** V31 first failed at Hibernate schema validation —
+*"missing column deleted_at in table user_branch_assignment"*. The join table was created back in V4,
+*before* the soft-delete convention, so mapping it via `TenantAwareEntity` (which requires
+`is_deleted/deleted_at/deleted_by`) didn't validate. Worse, the first (broken) V31 had already
+committed to the persistent dev/test DBs, so editing it triggered a Flyway **checksum mismatch**. Fix:
+make V31 idempotent (`ADD COLUMN IF NOT EXISTS`, guarded `ADD CONSTRAINT`), delete its
+`flyway_schema_history` row on both DBs, and let it re-apply cleanly. Lesson: a brand-new migration is
+still "mutable" *only* by clearing its history row everywhere it touched — and reusing a pre-existing
+table means inheriting whatever era's conventions it was born under.
+
+---
+
+## Full QA sweep — automated checks, cross-role Playwright, and responsiveness (2 fixes)
+
+A whole-project verification pass.
+
+**Automated (all green):** backend suite **103 tests / 0 failures**; frontend **production build** compiled
+successfully and prerendered all 33 routes (catches prod-only issues dev mode hides); frontend
+`tsc --noEmit` **0 errors**.
+
+**Cross-role Playwright:** signed in per role and drove the major flows. Confirmed the recent work end
+to end — navbar now shows **name + role** ("Manoj Manager / Investigation Manager"), the profile lists
+all org placement (department, designation, region, home branch *with location*, and **multiple
+branches**), a claim's **investigating officer** shows on the detail (the exact gap reported), and the
+reassign picker shows **employee code** with the dropdown width matching its trigger.
+
+**Responsiveness:** measured `scrollWidth > clientWidth` at 375 px per shell. The **staff app was
+clean** (collapsible sidebar; tables scroll inside their own `overflow-x-auto` container; `min-w-0`
+containment on the shell). A parallel code-audit + live measurement found the **customer portal header
+overflowed** at 375 px (415 > 360 px) — the single-row nav didn't fit a phone, made worse by the new
+name/role in the account menu. **Fixed:** brand text drops below `sm`, gaps/padding shrink, nav items
+`shrink-0` + `whitespace-nowrap` → now 360 = 360, no horizontal scroll. Also hardened **10 dialogs**
+that lacked `max-h-[90vh] overflow-y-auto` (tall multi-field forms could clip their submit button on
+short/landscape phones) to match the pattern the other dialogs already used.
+
+**Honest scope note:** this covered every major flow and both shells at desktop + mobile, not every
+possible permutation (e.g. not every field-level validation on every form). No functional regressions
+found; the two issues were both responsiveness polish, now resolved.
+
+---
+
+## Measuring the fraud scorer — an evaluation harness (tools/fraud-eval/)
+
+To answer "how accurate is the fraud score?" honestly: you can't, without ground-truth labels. So built
+a harness (`tools/fraud-eval/fraud_eval.py`) that makes the **methodology** concrete.
+
+**What it does:** mirrors the engine's exact rules/weights/thresholds (from `FraudEngine.java`),
+generates a labelled synthetic dataset (400 claims, 13% fraud base rate, documented per-rule fire
+probabilities), scores each through the identical logic, and evaluates the score as a binary classifier
+— all metrics computed from scratch (no sklearn).
+
+**Headline results:** ROC **AUC 0.87**, AUPRC **0.66** (vs 0.13 no-skill baseline — 5× lift). At the
+shipped **HIGH ≥50** cut-off: precision **0.90**, recall **0.37** (a precise, low-noise queue). At
+**MEDIUM ≥25**: precision **0.56**, recall **0.67** (wider net, more false alarms). The score is
+**monotonic with real fraud** — 0–19 band ≈ 3% fraud, 80+ band = 100%.
+
+**The insight that sells it — per-rule lift:** `DUPLICATE_IMAGE` is 94% precise (when it fires it's
+almost always fraud); `EARLY_CLAIM` fired 70× but was right only 34% of the time — it's dragging
+MEDIUM's precision down. Actionable: demote its weight / make it a soft signal.
+
+**Interview framing — the three things this demonstrates:** (1) you don't measure a rare-event
+classifier with raw *accuracy* (a "never fraud" model is 87% accurate and useless) — you lead with
+precision/recall/AUPRC; (2) the MEDIUM/HIGH thresholds are a *business dial* set from the ROC/PR curve,
+not a fixed truth; (3) per-rule lift is how you tune a rule engine empirically. Honest caveat baked in:
+labels are synthetic; the engine is rule-based *by design* (auditability), with a supervised-model
+upgrade path once real investigator labels accrue.
+
+Visual report artifact: rendered from `report.json` (calibration chart, ROC curve, confusion matrices,
+per-rule lift). Rerun: `python tools/fraud-eval/fraud_eval.py`.
+
+---
+
+## Fraud evaluation — the live feedback loop + where the ruleset actually runs
+
+**Feedback loop (built).** The eval harness started on synthetic labels; it now also runs on REAL
+outcomes. Every claim *Decide* records a ground-truth label — `claim.fraud_confirmed` (migration V32):
+approve → false, reject-for-fraud → true, reject-for-coverage → false. A new endpoint
+`GET /fraud/evaluation/dataset` (`FRAUD_READ`) emits each decided claim's **score + fired rules
+(parsed from the explanation) + true label**, and `python fraud_eval.py --live <url> <email> <pw>`
+pulls it and runs the *identical* metrics. Proven end-to-end on seeded real decisions: 11 labelled
+claims → AUC 0.81, MEDIUM precision 1.00 / recall 0.67, with one honest missed fraud (a fraud that
+scored 0). Same report, synthetic → real, no code change — just more labels over time.
+
+**Where the ruleset runs (the "who / which state" answer).**
+- *Who configures it:* any role with `RULESET_WRITE` (Tenant Administrator has it) on the **Fraud
+  Rulesets** screen — per-tenant, self-service. A ruleset = weighted rules + medium/high thresholds,
+  scoped to a **claim type**, with a status; only the **ACTIVE** ruleset for that claim type applies
+  (else built-in defaults).
+- *Who consumes the output:* investigators / investigation managers, gated by `FRAUD_READ`.
+- *Which state it's applied at:* automatically in the async pipeline, **once**, at the fraud-scoring
+  step. `SUBMITTED → AWAITING_ANALYSIS` (OCR + image analysis run) → the atomic fraud **gate** fires
+  only when *both* OCR and analysis are COMPLETE → `FraudEngine.evaluate()` loads the tenant's ACTIVE
+  ruleset for the claim's type, scores, writes score+risk+explanation, and moves the claim to
+  `AWAITING_ASSIGNMENT`. Not at draft, not at decision — right before assignment — and it re-runs on
+  reprocessing when the customer responds with new information.
+
+---
+
+## Ruleset A/B comparison — tuning against outcomes (harness --compare)
+
+The finish of the evaluation story: `python fraud_eval.py --compare config-default.json config-tuned.json`
+re-scores the same labelled claims (synthetic or --live) under two ruleset configs and prints a
+side-by-side metrics diff. A config is `{name, weights:{RULE:weight}, medium, high}` (omit a rule to
+disable it). The bundled example acts on the harness's own finding — demote the noisy `EARLY_CLAIM`
+(20→8), boost the sharp `DUPLICATE_IMAGE` (40→50) — and it **measurably wins**: AUPRC 0.662→0.681,
+HIGH recall 0.365→0.385, HIGH F1 0.521→0.541. So the loop is complete: measure → find the weak rule →
+tune offline against real outcomes → activate the winner. Turns the scorer from a black box into
+something you can *improve with evidence*.
+
+**Resilience note (asked & verified):** there is NO seeded default ruleset — the defaults are code
+constants in `FraudEngine.java`. Proven: the demo tenant has 0 `fraud_ruleset` rows yet 12 scored
+claims. Deleting a custom ruleset (soft-delete) → engine sees no ACTIVE ruleset → falls back to
+defaults; a ruleset referencing an unknown rule code → `evaluator == null` guard skips it. Fraud
+scoring cannot be broken by data deletion. (The only genuinely required seed is the global
+roles/permissions, which the app never exposes for deletion.)
+
+---
+
+## Pagination — and the empty-page bug most implementations ship with
+
+**The gap:** every list endpoint returned an unbounded `List<>`. `@TenantId` bounds a query to one
+insurer, but a single insurer can still hold thousands of claims — so `GET /claims` would serialise
+all of them and the UI would render all of them. Invisible at demo scale, a latency/memory problem at
+production scale. The config lists (roles, departments, designations, regions, branches, products,
+rulesets) are naturally small and deliberately stay unpaged; the **transactional** ones — claims,
+customers, users, policies — are the ones that grow without bound, and those are what got paged.
+
+**Wire format.** A `PagedResponse<T>` record — `content, page, size, totalElements, totalPages,
+first, last` — mapped from Spring's `Page` rather than returning `Page`/`PageImpl` directly. Spring
+Data does not treat `PageImpl`'s JSON shape as API contract; it has changed between versions, so
+serialising it straight to clients couples your API to an internal detail. Endpoints take
+`?page=&size=` and go through `PageRequests.of(...)`, which **clamps** — page floors at 0, size is
+forced into [1, 100]. Without the clamp a negative page throws inside `PageRequest.of` and
+`?size=100000` pulls the whole table, defeating the point of paging.
+
+**The split that made it work: paged lists vs. `/options`.** The dropdowns (investigator picker,
+customer picker on new-claim/new-policy) called the very same `list()` the screens did. Paginating
+that endpoint would have silently truncated every picker to its first 10 entries — a data-loss bug
+disguised as a UI change, and the kind of thing that only shows up once someone's 11th investigator
+can't be assigned. So the listing endpoints paginate and dedicated `GET /users/options`,
+`/customers/options`, `/policies/options` stay unpaged for pickers. Two different jobs, two
+endpoints, neither compromised.
+
+**The side effect that matters — the page that no longer exists.** You're on page 2 looking at the
+11th row, you delete it, and a naive implementation refetches page 2, gets nothing back, and renders
+an **empty table with no way out**. The fix lives in one place, `usePaginated`: after every fetch,
+compare the current page against the returned `totalPages` and step back to the last page that still
+has rows. Because it keys off server truth rather than a local guess, the same three lines cover
+deleting the last row on a page, deleting a whole page's worth, and an out-of-range `?page=99` typed
+straight into the URL. It can't loop — it only fires while `page` is strictly past the last index and
+always targets a valid page. **Verified in the browser, not just reasoned about:** 11 customers →
+page 2 showed "Showing 11–11 of 11" → deleted that row → the list landed back on page 1 with 10 rows
+and the pagination bar auto-hid (one page left). The backend already behaves correctly here too — an
+out-of-range page returns empty `content` with honest `totalElements`/`totalPages`, which is exactly
+the signal the clamp needs.
+
+**Cost:** 106 tests still green. One test changed — `UserListIntegrationTest` asserted the old array
+shape and the `?role=` filter on `/users`; it now asserts the page envelope on `/users` and the role
+filter on `/users/options`. That test failing was the system working: the contract moved, and the
+suite noticed.

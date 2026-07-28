@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, BookOpen, Plus, CheckCircle2, Pencil } from "lucide-react";
+import { ArrowLeft, BookOpen, FileText, Plus, CheckCircle2, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { LoadingRows, ErrorState, EmptyState } from "@/components/data-state";
@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Can } from "@/components/can";
 import { VersionFormDialog, EditProductDialog } from "@/components/products/product-dialogs";
 import { KnowledgeDialog } from "@/components/products/knowledge-dialog";
+import { WordingDialog } from "@/components/products/wording-dialog";
 import { useAsync } from "@/hooks/useAsync";
 import { useMutation } from "@/hooks/useMutation";
 import { productService } from "@/services/productService";
@@ -25,7 +26,8 @@ export default function ProductDetailPage() {
   const productId = Number(params.id);
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [knowledgeVersion, setKnowledgeVersion] = useState<number | null>(null);
+  const [knowledgeVersion, setKnowledgeVersion] = useState<ProductVersionResponse | null>(null);
+  const [wordingVersion, setWordingVersion] = useState<number | null>(null);
 
   const product = useAsync(() => productService.get(productId), [productId]);
   const versions = useAsync(() => productService.listVersions(productId), [productId]);
@@ -46,8 +48,13 @@ export default function ProductDetailPage() {
       cell: (v) => (
         <div className="flex justify-end gap-2">
           <Can permission={PERMISSIONS.COVERAGE_WRITE}>
-            <Button variant="outline" size="sm" onClick={() => setKnowledgeVersion(v.id)}>
+            <Button variant="outline" size="sm" onClick={() => setKnowledgeVersion(v)}>
               <BookOpen className="mr-1 h-4 w-4" /> Knowledge
+            </Button>
+          </Can>
+          <Can permission={PERMISSIONS.PRODUCT_WRITE}>
+            <Button variant="outline" size="sm" onClick={() => setWordingVersion(v.id)}>
+              <FileText className="mr-1 h-4 w-4" /> Wording
             </Button>
           </Can>
           {v.status !== "ACTIVE" ? (
@@ -126,9 +133,18 @@ export default function ProductDetailPage() {
           {knowledgeVersion != null ? (
             <KnowledgeDialog
               productId={productId}
-              versionId={knowledgeVersion}
+              versionId={knowledgeVersion.id}
+              versionNumber={knowledgeVersion.versionNumber}
               open={knowledgeVersion != null}
               onOpenChange={(v) => !v && setKnowledgeVersion(null)}
+            />
+          ) : null}
+          {wordingVersion != null ? (
+            <WordingDialog
+              productId={productId}
+              versionId={wordingVersion}
+              open={wordingVersion != null}
+              onOpenChange={(v) => !v && setWordingVersion(null)}
             />
           ) : null}
         </>

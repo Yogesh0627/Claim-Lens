@@ -1,13 +1,21 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAsync } from "@/hooks/useAsync";
-import { notificationService } from "@/services/miscService";
+import { notificationService, onNotificationsChanged } from "@/services/miscService";
 
 export function NotificationsBell() {
-  const { data } = useAsync(() => notificationService.list(), []);
+  const pathname = usePathname();
+  // Re-fetch on every route change (picks up newly-arrived notifications as the user navigates)…
+  const { data, refetch } = useAsync(() => notificationService.list(), [pathname]);
+  // …and immediately when a notification is marked read elsewhere (e.g. the notifications page), so
+  // the badge never lags behind the actual unread count.
+  useEffect(() => onNotificationsChanged(refetch), [refetch]);
+
   const unread = (data ?? []).filter((n) => !n.read).length;
 
   return (

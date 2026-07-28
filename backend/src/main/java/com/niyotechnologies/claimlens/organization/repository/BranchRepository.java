@@ -28,5 +28,7 @@ public interface BranchRepository
             Long regionId
     );
 
+    /** All branches in the tenant (across regions) — for a flat picker like "home branch". */
+    List<Branch> findAllByIsDeletedFalse();
 
 }

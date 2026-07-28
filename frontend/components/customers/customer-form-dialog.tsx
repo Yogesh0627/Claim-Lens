@@ -97,43 +97,43 @@ export function CustomerFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit customer" : "New customer"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit((v) => save.run(v))} className="grid gap-4">
           {!isEdit ? (
-            <Field label="Customer number" required>
+            <Field label="Customer number" required error={save.fieldErrors?.customerNumber}>
               <Input {...register("customerNumber", { required: true })} />
             </Field>
           ) : null}
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="First name" required>
+            <Field label="First name" required error={save.fieldErrors?.firstName}>
               <Input {...register("firstName", { required: true })} />
             </Field>
-            <Field label="Last name">
+            <Field label="Last name" error={save.fieldErrors?.lastName}>
               <Input {...register("lastName")} />
             </Field>
-            <Field label="Email">
+            <Field label="Email" error={save.fieldErrors?.email}>
               <Input type="email" {...register("email")} />
             </Field>
-            <Field label="Phone">
+            <Field label="Phone" error={save.fieldErrors?.phone}>
               <Input {...register("phone")} />
             </Field>
-            <Field label="Date of birth">
+            <Field label="Date of birth" error={save.fieldErrors?.dateOfBirth}>
               <Controller
                 control={control}
                 name="dateOfBirth"
                 render={({ field }) => <DatePicker value={field.value} onChange={field.onChange} />}
               />
             </Field>
-            <Field label="National ID">
+            <Field label="National ID" error={save.fieldErrors?.nationalId}>
               <Input {...register("nationalId")} />
             </Field>
-            <Field label="City">
+            <Field label="City" error={save.fieldErrors?.city}>
               <Input {...register("city")} />
             </Field>
-            <Field label="State">
+            <Field label="State" error={save.fieldErrors?.state}>
               <Input {...register("state")} />
             </Field>
           </div>
@@ -170,10 +170,12 @@ export function CustomerFormDialog({
 function Field({
   label,
   required,
+  error,
   children,
 }: {
   label: string;
   required?: boolean;
+  error?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -183,6 +185,7 @@ function Field({
         {required ? <span className="text-destructive"> *</span> : null}
       </Label>
       {children}
+      {error ? <p className="text-destructive text-xs">{error}</p> : null}
     </div>
   );
 }

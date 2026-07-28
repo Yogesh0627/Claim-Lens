@@ -5,8 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.niyotechnologies.claimlens.product.enums.ProductVersionStatus;
 import com.niyotechnologies.claimlens.support.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.nio.charset.StandardCharsets;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -103,6 +108,85 @@ class ClaimIntakeIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("AWAITING_ANALYSIS"))
                 .andExpect(jsonPath("$.data.warnings[0]").value("POTENTIAL_OVER_LIMIT_CLAIM"));
+    }
+
+    @Test
+    void submittingAnExactOpenDuplicateIsHardRejected() throws Exception {
+        long tenant = insertCompany("Alpha", "ALPHA", "alpha");
+        long admin = roleIdByCode("TENANT_ADMIN");
+        long customer = insertCustomer(tenant, "CUST-1");
+        long policy = setupPolicy(tenant, admin, customer);
+
+        // First claim submits fine and is now non-terminal (AWAITING_ANALYSIS).
+        long first = createDraft(tenant, admin,
+                claimBody(customer, policy, "2024-06-01", 50000, "MH-12-AB-1234"));
+        mockMvc.perform(post(CLAIMS + "/{id}/submit", first).header("Authorization", bearer(tenant, admin)))
+                .andExpect(status().isOk());
+
+        // A second claim for the SAME policy + vehicle + incident date is an accidental double-submit.
+        // Vehicle written differently ("MH12AB1234") to prove the check normalises registration.
+        long duplicate = createDraft(tenant, admin,
+                claimBody(customer, policy, "2024-06-01", 50000, "MH12AB1234"));
+        mockMvc.perform(post(CLAIMS + "/{id}/submit", duplicate).header("Authorization", bearer(tenant, admin)))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("DUPLICATE_CLAIM_EXISTS")));
+    }
+
+    @Test
+    void aDifferentIncidentDateIsNotBlocked() throws Exception {
+        long tenant = insertCompany("Alpha", "ALPHA", "alpha");
+        long admin = roleIdByCode("TENANT_ADMIN");
+        long customer = insertCustomer(tenant, "CUST-1");
+        long policy = setupPolicy(tenant, admin, customer);
+
+        long first = createDraft(tenant, admin,
+                claimBody(customer, policy, "2024-06-01", 50000, "MH-12-AB-1234"));
+        mockMvc.perform(post(CLAIMS + "/{id}/submit", first).header("Authorization", bearer(tenant, admin)))
+                .andExpect(status().isOk());
+
+        // Same policy + vehicle but a DIFFERENT loss date -> a genuinely separate claim, not blocked.
+        long other = createDraft(tenant, admin,
+                claimBody(customer, policy, "2024-07-15", 50000, "MH-12-AB-1234"));
+        mockMvc.perform(post(CLAIMS + "/{id}/submit", other).header("Authorization", bearer(tenant, admin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("AWAITING_ANALYSIS"));
+    }
+
+    @Test
+    void aSettledDuplicateDoesNotBlockAFreshClaim() throws Exception {
+        long tenant = insertCompany("Alpha", "ALPHA", "alpha");
+        long admin = roleIdByCode("TENANT_ADMIN");
+        long customer = insertCustomer(tenant, "CUST-1");
+        long policy = setupPolicy(tenant, admin, customer);
+        long investigator = insertUser(tenant, "inv@alpha.test", "unused-hash",
+                roleIdByCode("INVESTIGATOR"));
+
+        // Drive the first claim all the way to a terminal state (REJECTED).
+        long first = createDraft(tenant, admin,
+                claimBody(customer, policy, "2024-06-01", 50000, "MH-12-AB-1234"));
+        mockMvc.perform(post(CLAIMS + "/{id}/submit", first).header("Authorization", bearer(tenant, admin)))
+                .andExpect(status().isOk());
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "accident.jpg", "image/jpeg", "bytes".getBytes(StandardCharsets.UTF_8));
+        mockMvc.perform(multipart(CLAIMS + "/{id}/documents", first).file(file)
+                        .param("documentType", "ACCIDENT_PHOTO").header("Authorization", bearer(tenant, admin)))
+                .andExpect(status().isCreated());
+        drivePipeline();
+        mockMvc.perform(get(CLAIMS + "/{id}", first).header("Authorization", bearer(tenant, admin)))
+                .andExpect(jsonPath("$.data.status").value("AWAITING_ASSIGNMENT"));
+        mockMvc.perform(post(CLAIMS + "/{id}/assign", first).header("Authorization", bearer(tenant, admin))
+                        .contentType("application/json").content("{\"investigatorUserId\":" + investigator + "}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post(CLAIMS + "/{id}/decision", first).header("Authorization", bearer(tenant, admin))
+                        .contentType("application/json").content("{\"decision\":\"REJECT\",\"reason\":\"denied\"}"))
+                .andExpect(jsonPath("$.data.status").value("REJECTED"));
+
+        // A settled duplicate must NOT block a fresh claim for the same loss — only OPEN ones do.
+        long fresh = createDraft(tenant, admin,
+                claimBody(customer, policy, "2024-06-01", 50000, "MH-12-AB-1234"));
+        mockMvc.perform(post(CLAIMS + "/{id}/submit", fresh).header("Authorization", bearer(tenant, admin)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("AWAITING_ANALYSIS"));
     }
 
     @Test

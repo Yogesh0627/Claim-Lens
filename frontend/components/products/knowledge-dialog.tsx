@@ -19,11 +19,13 @@ import { coverageService } from "@/services/coverageService";
 export function KnowledgeDialog({
   productId,
   versionId,
+  versionNumber,
   open,
   onOpenChange,
 }: {
   productId: number;
   versionId: number;
+  versionNumber: number;
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
@@ -43,9 +45,9 @@ export function KnowledgeDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Policy knowledge — version {versionId}</DialogTitle>
+          <DialogTitle>Policy knowledge — v{versionNumber}</DialogTitle>
           <DialogDescription>
             Paste the policy wording. It is chunked and embedded so coverage questions can be
             answered from it. Re-ingesting replaces the existing knowledge.

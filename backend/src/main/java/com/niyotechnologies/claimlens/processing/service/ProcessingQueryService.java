@@ -14,6 +14,9 @@ import com.niyotechnologies.claimlens.processing.repository.OcrResultRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,9 +50,16 @@ public class ProcessingQueryService {
                 .map(s -> new ProcessingState(s.getOcrStatus(), s.getAnalysisStatus(), s.getFraudStatus()))
                 .orElse(null);
 
-        FraudSummary fraud = fraudScoreRepository.findFirstByClaimIdOrderByCreatedAtDesc(claimId)
-                .map(f -> new FraudSummary(f.getScore(), f.getRiskLevel(), f.getExplanation()))
-                .orElse(null);
+        // FRAUD_READ gates the fraud block specifically. Processing STATUS (OCR/analysis progress) is
+        // fine for anyone who can read the claim, but the score/risk/explanation is a sensitive
+        // assessment restricted by design to the investigation roles — the endpoint is CLAIM_READ, so
+        // without this check a role deliberately denied FRAUD_READ (e.g. Customer Support) would still
+        // see it. FRAUD_READ was otherwise enforced nowhere: a dead permission until now.
+        FraudSummary fraud = hasAuthority("FRAUD_READ")
+                ? fraudScoreRepository.findFirstByClaimIdOrderByCreatedAtDesc(claimId)
+                        .map(f -> new FraudSummary(f.getScore(), f.getRiskLevel(), f.getExplanation()))
+                        .orElse(null)
+                : null;
 
         List<OcrResultResponse> ocr = ocrResultRepository.findAllByClaimIdOrderByCreatedAtAsc(claimId).stream()
                 .map(r -> new OcrResultResponse(r.getId(), r.getDocumentId(), r.getEngine(),
@@ -65,5 +75,19 @@ public class ProcessingQueryService {
                         .toList();
 
         return new ClaimProcessingResponse(state, fraud, ocr, analysis);
+    }
+
+    /** True when the authenticated caller holds the given permission (a JWT authority). */
+    private boolean hasAuthority(String permission) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) {
+            return false;
+        }
+        for (GrantedAuthority granted : auth.getAuthorities()) {
+            if (permission.equals(granted.getAuthority())) {
+                return true;
+            }
+        }
+        return false;
     }
 }

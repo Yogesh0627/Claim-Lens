@@ -22,6 +22,9 @@ public interface BranchService {
             Long regionId
     );
 
+    /** All branches in the tenant, across regions — for a flat picker (e.g. a user's home branch). */
+    List<BranchResponse> getAllBranches();
+
     BranchResponse updateBranch(
             Long regionId,
             Long branchId,

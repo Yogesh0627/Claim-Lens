@@ -16,6 +16,16 @@ public class EarlyClaimRule implements FraudRuleEvaluator {
     }
 
     @Override
+    public String description() {
+        return "Claim filed within 30 days of the policy starting";
+    }
+
+    @Override
+    public int defaultWeight() {
+        return 20;
+    }
+
+    @Override
     public boolean triggers(Claim claim, InsurancePolicy policy) {
         return policy != null
                 && claim.getIncidentDate() != null

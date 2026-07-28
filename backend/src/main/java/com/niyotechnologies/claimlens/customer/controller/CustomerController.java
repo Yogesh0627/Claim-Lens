@@ -1,6 +1,7 @@
 package com.niyotechnologies.claimlens.customer.controller;
 
 import com.niyotechnologies.claimlens.common.response.ApiResponse;
+import com.niyotechnologies.claimlens.common.response.PagedResponse;
 import com.niyotechnologies.claimlens.customer.dto.request.CreateCustomerRequest;
 import com.niyotechnologies.claimlens.customer.dto.request.UpdateCustomerRequest;
 import com.niyotechnologies.claimlens.customer.dto.response.CustomerResponse;
@@ -34,8 +35,16 @@ public class CustomerController {
     }
 
     @GetMapping
-    public ApiResponse<List<CustomerResponse>> getCustomers() {
-        return ApiResponse.success(customerService.getCustomers());
+    public ApiResponse<PagedResponse<CustomerResponse>> getCustomers(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ApiResponse.success(customerService.getCustomers(page, size));
+    }
+
+    /** Unpaged — for customer pickers (new claim, new policy, customer-role user). */
+    @GetMapping("/options")
+    public ApiResponse<List<CustomerResponse>> getCustomerOptions() {
+        return ApiResponse.success(customerService.getCustomerOptions());
     }
 
     @PutMapping("/{customerId}")

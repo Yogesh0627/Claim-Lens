@@ -424,11 +424,13 @@ function SidebarGroupContent({ className, ...props }: React.ComponentProps<"div"
 }
 
 function SidebarMenu({ className, ...props }: React.ComponentProps<"ul">) {
+  // gap-1 (not gap-0): without a gap, the active item's highlight and a hovered neighbour's highlight
+  // sit flush and read as one selection. A small gap separates them.
   return (
     <ul
       data-slot="sidebar-menu"
       data-sidebar="menu"
-      className={cn("flex w-full min-w-0 flex-col gap-0", className)}
+      className={cn("flex w-full min-w-0 flex-col gap-1", className)}
       {...props}
     />
   );

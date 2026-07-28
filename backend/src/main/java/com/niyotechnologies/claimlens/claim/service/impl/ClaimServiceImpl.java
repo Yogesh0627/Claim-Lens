@@ -6,6 +6,7 @@ import com.niyotechnologies.claimlens.assignment.entity.ClaimAssignment;
 import com.niyotechnologies.claimlens.assignment.enums.AssignmentStatus;
 import com.niyotechnologies.claimlens.assignment.repository.ClaimAssignmentRepository;
 import com.niyotechnologies.claimlens.claim.dto.request.AssignClaimRequest;
+import com.niyotechnologies.claimlens.claim.dto.request.ReassignClaimRequest;
 import com.niyotechnologies.claimlens.claim.dto.request.ClaimDecisionRequest;
 import com.niyotechnologies.claimlens.claim.dto.request.CreateClaimRequest;
 import com.niyotechnologies.claimlens.claim.dto.request.RequestInformationRequest;
@@ -21,6 +22,8 @@ import com.niyotechnologies.claimlens.claim.service.ClaimService;
 import com.niyotechnologies.claimlens.claim.validator.ClaimSubmissionValidator;
 import com.niyotechnologies.claimlens.common.exception.BusinessException;
 import com.niyotechnologies.claimlens.common.exception.NotFoundException;
+import com.niyotechnologies.claimlens.common.response.PagedResponse;
+import com.niyotechnologies.claimlens.common.util.PageRequests;
 import com.niyotechnologies.claimlens.customer.repository.CustomerRepository;
 import com.niyotechnologies.claimlens.document.entity.Document;
 import com.niyotechnologies.claimlens.document.repository.DocumentRepository;
@@ -40,9 +43,12 @@ import com.niyotechnologies.claimlens.policy.repository.InsuredVehicleRepository
 import com.niyotechnologies.claimlens.processing.orchestrator.ProcessingOrchestrator;
 import com.niyotechnologies.claimlens.product.entity.InsuranceProduct;
 import com.niyotechnologies.claimlens.product.repository.InsuranceProductRepository;
+import com.niyotechnologies.claimlens.security.service.PermissionService;
+import com.niyotechnologies.claimlens.user.entity.AppUser;
 import com.niyotechnologies.claimlens.user.repository.AppUserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -76,6 +82,8 @@ public class ClaimServiceImpl implements ClaimService {
     private final CustomerRepository customerRepository;
     @Autowired
     private final AppUserRepository appUserRepository;
+    @Autowired
+    private final PermissionService permissionService;
     @Autowired
     private final ClaimAssignmentRepository assignmentRepository;
     @Autowired
@@ -188,8 +196,9 @@ public class ClaimServiceImpl implements ClaimService {
     @Auditable(action = "CLAIM_ASSIGNED", entityType = "CLAIM")
     public ClaimResponse assign(Long claimId, AssignClaimRequest request) {
         Claim claim = getAssignableClaimOrThrow(claimId);
-        appUserRepository.findByIdAndIsDeletedFalse(request.investigatorUserId())
+        AppUser assignee = appUserRepository.findByIdAndIsDeletedFalse(request.investigatorUserId())
                 .orElseThrow(() -> new NotFoundException("INVESTIGATOR_NOT_FOUND", "Investigator not found"));
+        requireCanInvestigate(assignee);
         return doAssign(claim, request.investigatorUserId());
     }
 
@@ -202,6 +211,65 @@ public class ClaimServiceImpl implements ClaimService {
         // Strategy-driven pick (least-loaded eligible investigator in this tenant).
         Long investigatorId = assignmentEngine.pickInvestigator();
         return doAssign(claim, investigatorId);
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize("hasAuthority('CLAIM_ASSIGN')")
+    @Auditable(action = "CLAIM_REASSIGNED", entityType = "CLAIM")
+    public ClaimResponse reassign(Long claimId, ReassignClaimRequest request) {
+        Claim claim = getClaimOrThrow(claimId);
+        if (claim.getStatus() != ClaimStatus.UNDER_INVESTIGATION) {
+            throw new BusinessException("CLAIM_NOT_UNDER_INVESTIGATION",
+                    "Only a claim under investigation can be reassigned");
+        }
+        // A specific investigator, or auto-pick (least-loaded) when none is given.
+        Long newInvestigatorId = request.investigatorUserId() != null
+                ? request.investigatorUserId()
+                : assignmentEngine.pickInvestigator();
+        AppUser assignee = appUserRepository.findByIdAndIsDeletedFalse(newInvestigatorId)
+                .orElseThrow(() -> new NotFoundException("INVESTIGATOR_NOT_FOUND", "Investigator not found"));
+        requireCanInvestigate(assignee);
+
+        // Retire the current live assignment(s), then create the new one — history stays complete.
+        assignmentRepository.findAllByClaimId(claim.getId()).stream()
+                .filter(a -> a.getStatus() == AssignmentStatus.ASSIGNED)
+                .forEach(a -> {
+                    a.setStatus(AssignmentStatus.REASSIGNED);
+                    assignmentRepository.save(a);
+                });
+
+        ClaimAssignment assignment = new ClaimAssignment();
+        assignment.setClaimId(claim.getId());
+        assignment.setInvestigatorUserId(newInvestigatorId);
+        assignment.setStatus(AssignmentStatus.ASSIGNED);
+        assignmentRepository.save(assignment);
+
+        String investigatorName = fullName(assignee.getFirstName(), assignee.getLastName());
+        recordHistory(claim, ClaimStatus.UNDER_INVESTIGATION, ClaimStatus.UNDER_INVESTIGATION,
+                "Reassigned to " + (investigatorName != null ? investigatorName
+                        : "investigator " + newInvestigatorId));
+        notificationService.notifyClaimEvent(newInvestigatorId, "CLAIM_ASSIGNED",
+                "Claim reassigned to you",
+                "Claim " + claim.getClaimNumber() + " has been reassigned to you",
+                ClaimEmailEvent.ASSIGNED, buildReportContext(claim, investigatorName, null, null));
+        return claimMapper.toResponse(claim, List.of());
+    }
+
+    /**
+     * A claim may only be assigned to someone who can actually investigate it.
+     *
+     * <p>Existence alone is not enough: without this check a claim could be assigned to a platform
+     * admin, auditor, or customer — anyone with no {@code CLAIM_INVESTIGATE} permission — stranding it
+     * in UNDER_INVESTIGATION with nobody able to act on it. The assign endpoint is guarded by
+     * CLAIM_ASSIGN (who may assign); this guards who may RECEIVE an assignment.
+     */
+    private void requireCanInvestigate(AppUser assignee) {
+        if (!permissionService.permissionCodesForRole(assignee.getTenantId(), assignee.getRoleId())
+                .contains("CLAIM_INVESTIGATE")) {
+            throw new BusinessException("NOT_AN_INVESTIGATOR",
+                    "The selected user is not permitted to investigate claims");
+        }
     }
 
     private Claim getAssignableClaimOrThrow(Long claimId) {
@@ -223,10 +291,12 @@ public class ClaimServiceImpl implements ClaimService {
 
         claim.setStatus(ClaimStatus.UNDER_INVESTIGATION);
         Claim saved = claimRepository.save(claim);
-        recordHistory(saved, ClaimStatus.AWAITING_ASSIGNMENT, ClaimStatus.UNDER_INVESTIGATION,
-                "Assigned to investigator " + investigatorUserId);
         String investigatorName = appUserRepository.findByIdAndIsDeletedFalse(investigatorUserId)
                 .map(u -> fullName(u.getFirstName(), u.getLastName())).orElse(null);
+        // Name in the note, not the raw id — this history line is shown to the policyholder.
+        recordHistory(saved, ClaimStatus.AWAITING_ASSIGNMENT, ClaimStatus.UNDER_INVESTIGATION,
+                "Assigned to " + (investigatorName != null ? investigatorName
+                        : "investigator " + investigatorUserId));
         notificationService.notifyClaimEvent(investigatorUserId, "CLAIM_ASSIGNED",
                 "New claim assigned",
                 "Claim " + saved.getClaimNumber() + " has been assigned to you",
@@ -249,9 +319,13 @@ public class ClaimServiceImpl implements ClaimService {
         if (request.decision() == ClaimDecision.APPROVE) {
             claim.setApprovedAt(now);
             target = ClaimStatus.APPROVED;
+            // A paid claim is, by definition, recorded as not-fraud.
+            claim.setFraudConfirmed(false);
         } else {
             claim.setRejectedAt(now);
             target = ClaimStatus.REJECTED;
+            // Rejected: fraud only if the investigator says so (else it's a coverage denial).
+            claim.setFraudConfirmed(Boolean.TRUE.equals(request.fraudConfirmed()));
         }
         claim.setStatus(target);
         Claim saved = claimRepository.save(claim);
@@ -420,10 +494,12 @@ public class ClaimServiceImpl implements ClaimService {
     @Override
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('CLAIM_READ')")
-    public List<ClaimResponse> getClaims() {
-        return claimRepository.findAllByIsDeletedFalse().stream()
-                .map(c -> claimMapper.toResponse(c, List.of()))
-                .toList();
+    public PagedResponse<ClaimResponse> getClaims(int page, int size) {
+        // Newest first so a freshly created claim lands at the top of page 0.
+        var pageable = PageRequests.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
+        return PagedResponse.from(
+                claimRepository.findAllByIsDeletedFalse(pageable),
+                c -> claimMapper.toResponse(c, List.of()));
     }
 
     private Claim getClaimOrThrow(Long claimId) {

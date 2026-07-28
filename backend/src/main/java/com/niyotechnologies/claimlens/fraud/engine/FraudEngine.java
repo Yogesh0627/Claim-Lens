@@ -34,6 +34,9 @@ public class FraudEngine {
     // Built-in defaults used when a tenant has not configured a fraud ruleset.
     private static final int DEFAULT_AMOUNT_WEIGHT = 40;
     private static final int DEFAULT_EARLY_WEIGHT = 20;
+    private static final int DEFAULT_DUPLICATE_IMAGE_WEIGHT = 40;
+    private static final int DEFAULT_SYNTHETIC_IMAGE_WEIGHT = 25;
+    private static final int DEFAULT_EXIF_INCONSISTENT_WEIGHT = 20;
     private static final int DEFAULT_MEDIUM_THRESHOLD = 25;
     private static final int DEFAULT_HIGH_THRESHOLD = 50;
 
@@ -85,6 +88,9 @@ public class FraudEngine {
             highThreshold = DEFAULT_HIGH_THRESHOLD;
             score += applyDefault(FraudRuleCodes.AMOUNT_OVER_SUM_INSURED, DEFAULT_AMOUNT_WEIGHT, claim, policy, explanation);
             score += applyDefault(FraudRuleCodes.EARLY_CLAIM, DEFAULT_EARLY_WEIGHT, claim, policy, explanation);
+            score += applyDefault(FraudRuleCodes.DUPLICATE_IMAGE, DEFAULT_DUPLICATE_IMAGE_WEIGHT, claim, policy, explanation);
+            score += applyDefault(FraudRuleCodes.SYNTHETIC_IMAGE, DEFAULT_SYNTHETIC_IMAGE_WEIGHT, claim, policy, explanation);
+            score += applyDefault(FraudRuleCodes.EXIF_INCONSISTENT, DEFAULT_EXIF_INCONSISTENT_WEIGHT, claim, policy, explanation);
         }
 
         String risk = score >= highThreshold ? "HIGH" : score >= mediumThreshold ? "MEDIUM" : "LOW";

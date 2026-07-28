@@ -3,14 +3,22 @@ package com.niyotechnologies.claimlens.portal.service.impl;
 import com.niyotechnologies.claimlens.audit.annotation.Auditable;
 import com.niyotechnologies.claimlens.claim.dto.request.CreateClaimRequest;
 import com.niyotechnologies.claimlens.claim.dto.response.ClaimResponse;
+import com.niyotechnologies.claimlens.claim.dto.response.ClaimTimelineEntryResponse;
 import com.niyotechnologies.claimlens.claim.entity.Claim;
 import com.niyotechnologies.claimlens.claim.mapper.ClaimMapper;
 import com.niyotechnologies.claimlens.claim.repository.ClaimRepository;
+import com.niyotechnologies.claimlens.claim.repository.ClaimStatusHistoryRepository;
+import com.niyotechnologies.claimlens.coverage.dto.AskCoverageRequest;
+import com.niyotechnologies.claimlens.coverage.dto.AskCoverageResponse;
+import com.niyotechnologies.claimlens.coverage.service.CoverageService;
+import com.niyotechnologies.claimlens.portal.dto.request.PortalAskCoverageRequest;
 import com.niyotechnologies.claimlens.claim.service.ClaimService;
+import com.niyotechnologies.claimlens.common.exception.BusinessException;
 import com.niyotechnologies.claimlens.common.exception.NotFoundException;
 import com.niyotechnologies.claimlens.common.exception.UnauthorizedException;
 import com.niyotechnologies.claimlens.document.dto.response.DocumentContent;
 import com.niyotechnologies.claimlens.document.dto.response.DocumentResponse;
+import com.niyotechnologies.claimlens.document.dto.response.DocumentVersionResponse;
 import com.niyotechnologies.claimlens.document.service.DocumentService;
 import com.niyotechnologies.claimlens.policy.dto.response.PolicyResponse;
 import com.niyotechnologies.claimlens.policy.entity.InsurancePolicy;
@@ -20,6 +28,9 @@ import com.niyotechnologies.claimlens.policy.repository.InsurancePolicyRepositor
 import com.niyotechnologies.claimlens.policy.repository.InsuredVehicleRepository;
 import com.niyotechnologies.claimlens.portal.dto.request.FileClaimRequest;
 import com.niyotechnologies.claimlens.portal.service.PortalService;
+import com.niyotechnologies.claimlens.product.dto.response.ProductDocumentResponse;
+import com.niyotechnologies.claimlens.product.service.ProductDocumentService;
+import com.niyotechnologies.claimlens.product.service.ProductDocumentService.DownloadedFile;
 import com.niyotechnologies.claimlens.security.model.ClaimLensPrincipal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,6 +61,12 @@ public class PortalServiceImpl implements PortalService {
     private final InsuredVehicleRepository vehicleRepository;
     @Autowired
     private final PolicyMapper policyMapper;
+    @Autowired
+    private final ClaimStatusHistoryRepository claimStatusHistoryRepository;
+    @Autowired
+    private final ProductDocumentService productDocumentService;
+    @Autowired
+    private final CoverageService coverageService;
 
     @Override
     @Transactional(readOnly = true)
@@ -136,6 +153,64 @@ public class PortalServiceImpl implements PortalService {
         return documentService.downloadInternal(claimId, documentId);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('PORTAL_CLAIM_READ')")
+    public List<DocumentVersionResponse> myClaimDocumentVersions(Long claimId, Long documentId) {
+        ownedClaimOrThrow(claimId); // ownership gate before reaching the un-gated internal method
+        return documentService.listVersionsInternal(claimId, documentId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('PORTAL_CLAIM_READ')")
+    public DocumentContent downloadMyClaimDocumentVersion(Long claimId, Long documentId, Long versionId) {
+        ownedClaimOrThrow(claimId);
+        return documentService.downloadVersionInternal(claimId, documentId, versionId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('PORTAL_CLAIM_READ')")
+    public List<ClaimTimelineEntryResponse> myClaimTimeline(Long claimId) {
+        ownedClaimOrThrow(claimId); // ownership gate — 404 for a claim that isn't this customer's
+        return claimStatusHistoryRepository.findAllByClaimIdOrderByChangedAtAsc(claimId).stream()
+                .map(h -> new ClaimTimelineEntryResponse(
+                        h.getFromStatus(), h.getToStatus(), h.getNote(), h.getChangedAt()))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('PORTAL_POLICY_READ')")
+    public List<ProductDocumentResponse> myPolicyDocuments(Long policyId) {
+        InsurancePolicy policy = ownedPolicyOrThrow(policyId);
+        return productDocumentService.listForVersionInternal(policy.getInsuranceProductVersionId());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('PORTAL_POLICY_READ')")
+    public DownloadedFile downloadMyPolicyDocument(Long policyId, Long documentId) {
+        InsurancePolicy policy = ownedPolicyOrThrow(policyId);
+        return productDocumentService.downloadForVersionInternal(
+                documentId, policy.getInsuranceProductVersionId());
+    }
+
+    @Override
+    @Transactional
+    @PreAuthorize("hasAuthority('PORTAL_POLICY_READ')")
+    public AskCoverageResponse askCoverage(PortalAskCoverageRequest request) {
+        // Resolve the version from the customer's OWN policy — never from a client-supplied id — so a
+        // policyholder can only ask about coverage they actually hold.
+        InsurancePolicy policy = ownedPolicyOrThrow(request.policyId());
+        Long versionId = policy.getInsuranceProductVersionId();
+        if (versionId == null) {
+            throw new BusinessException("POLICY_HAS_NO_VERSION", "This policy has no product version");
+        }
+        return coverageService.askInternal(new AskCoverageRequest(versionId, null, request.question()));
+    }
+
     /**
      * The ownership gate. Loads a claim by (id, currentCustomerId) — so a claim in the same tenant
      * but owned by another customer simply isn't found (404), exactly like the cross-tenant case.
@@ -143,6 +218,13 @@ public class PortalServiceImpl implements PortalService {
     private Claim ownedClaimOrThrow(Long claimId) {
         return claimRepository.findByIdAndCustomerIdAndIsDeletedFalse(claimId, currentCustomerId())
                 .orElseThrow(() -> new NotFoundException("CLAIM_NOT_FOUND", "Claim not found"));
+    }
+
+    /** Ownership gate for a policy — 404 (never 403) for a policy that isn't this customer's. */
+    private InsurancePolicy ownedPolicyOrThrow(Long policyId) {
+        return policyRepository.findByIdAndIsDeletedFalse(policyId)
+                .filter(p -> currentCustomerId().equals(p.getCustomerId()))
+                .orElseThrow(() -> new NotFoundException("POLICY_NOT_FOUND", "Policy not found"));
     }
 
     private InsuredVehicle vehicleFor(Long policyId) {

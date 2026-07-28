@@ -7,15 +7,18 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * The user directory (GET /users) powers the investigator picker on claim assignment: tenant-scoped
- * by @TenantId, gated by USER_READ, optionally filtered by role code.
+ * The user directory: GET /users is the paged directory screen (tenant-scoped by @TenantId, gated by
+ * USER_READ). GET /users/options is the unpaged, role-filterable list that powers the investigator
+ * picker on claim assignment.
  */
 class UserListIntegrationTest extends AbstractIntegrationTest {
 
     private static final String USERS = "/api/v1/users";
+    private static final String USER_OPTIONS = "/api/v1/users/options";
 
     @Test
     void adminListsUsersAndFiltersByRole() throws Exception {
@@ -28,15 +31,18 @@ class UserListIntegrationTest extends AbstractIntegrationTest {
         insertUser(tenant, "inv2@alpha.test", "h", investigatorRole);
         insertUser(tenant, "support@alpha.test", "h", supportRole);
 
-        // Full directory: all three appear.
+        // Full directory is now paged: all three appear inside the page envelope.
         mockMvc.perform(get(USERS).header("Authorization", "Bearer " + tokenFor(1L, tenant, adminRole)))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content").exists())
+                .andExpect(jsonPath("$.data.totalElements").value(3))
+                .andExpect(jsonPath("$.data.page").value(0))
                 .andExpect(content().string(containsString("inv1@alpha.test")))
                 .andExpect(content().string(containsString("inv2@alpha.test")))
                 .andExpect(content().string(containsString("support@alpha.test")));
 
-        // Filtered to INVESTIGATOR: the support user is excluded.
-        mockMvc.perform(get(USERS).param("role", "INVESTIGATOR")
+        // The picker options endpoint filters to INVESTIGATOR: the support user is excluded.
+        mockMvc.perform(get(USER_OPTIONS).param("role", "INVESTIGATOR")
                         .header("Authorization", "Bearer " + tokenFor(1L, tenant, adminRole)))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("inv1@alpha.test")))

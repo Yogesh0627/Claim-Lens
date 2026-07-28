@@ -16,6 +16,16 @@ public class AmountOverSumInsuredRule implements FraudRuleEvaluator {
     }
 
     @Override
+    public String description() {
+        return "Claim amount exceeds the policy's sum insured";
+    }
+
+    @Override
+    public int defaultWeight() {
+        return 30;
+    }
+
+    @Override
     public boolean triggers(Claim claim, InsurancePolicy policy) {
         return policy != null
                 && claim.getClaimAmount() != null

@@ -56,6 +56,9 @@ export function ConfirmDialog({
           {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
         <DialogFooter>
+          {/* No tooltips here: these are labelled text buttons, so a tooltip is redundant — and a
+              Radix tooltip also opens on FOCUS, so the dialog auto-focusing Cancel would leave its
+              tooltip permanently visible. Tooltips are reserved for the icon-only row actions. */}
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>

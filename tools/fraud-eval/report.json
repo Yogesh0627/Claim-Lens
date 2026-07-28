@@ -1,0 +1,307 @@
+{
+  "meta": {
+    "source": "synthetic",
+    "n_claims": 400,
+    "n_fraud": 52,
+    "fraud_rate": 0.13,
+    "seed": 42,
+    "rules": {
+      "AMOUNT_OVER_SUM_INSURED": {
+        "weight": 40,
+        "label": "Claim amount exceeds the sum insured"
+      },
+      "EARLY_CLAIM": {
+        "weight": 20,
+        "label": "Claim within 30 days of policy start"
+      },
+      "DUPLICATE_IMAGE": {
+        "weight": 40,
+        "label": "Photo reused from another claim"
+      },
+      "SYNTHETIC_IMAGE": {
+        "weight": 25,
+        "label": "Photo appears AI-generated / synthetic"
+      },
+      "EXIF_INCONSISTENT": {
+        "weight": 20,
+        "label": "Photo metadata inconsistent with incident"
+      }
+    },
+    "medium_threshold": 25,
+    "high_threshold": 50,
+    "p_fire": {
+      "AMOUNT_OVER_SUM_INSURED": {
+        "legit": 0.04,
+        "fraud": 0.35
+      },
+      "EARLY_CLAIM": {
+        "legit": 0.12,
+        "fraud": 0.45
+      },
+      "DUPLICATE_IMAGE": {
+        "legit": 0.01,
+        "fraud": 0.4
+      },
+      "SYNTHETIC_IMAGE": {
+        "legit": 0.02,
+        "fraud": 0.15
+      },
+      "EXIF_INCONSISTENT": {
+        "legit": 0.05,
+        "fraud": 0.3
+      }
+    }
+  },
+  "operating_points": {
+    "HIGH (score>=50)": {
+      "precision": 0.9047619047619048,
+      "recall": 0.36538461538461536,
+      "specificity": 0.9942528735632183,
+      "f1": 0.5205479452054794,
+      "accuracy": 0.9125,
+      "fpr": 0.005747126436781609,
+      "tp": 19,
+      "fp": 2,
+      "tn": 346,
+      "fn": 33
+    },
+    "MEDIUM (score>=25)": {
+      "precision": 0.5645161290322581,
+      "recall": 0.6730769230769231,
+      "specificity": 0.9224137931034483,
+      "f1": 0.6140350877192983,
+      "accuracy": 0.89,
+      "fpr": 0.07758620689655173,
+      "tp": 35,
+      "fp": 27,
+      "tn": 321,
+      "fn": 17
+    }
+  },
+  "roc_auc": 0.8734,
+  "roc_curve": [
+    {
+      "threshold": 101,
+      "fpr": 0.0,
+      "tpr": 0.0
+    },
+    {
+      "threshold": 100,
+      "fpr": 0.0,
+      "tpr": 0.0385
+    },
+    {
+      "threshold": 85,
+      "fpr": 0.0,
+      "tpr": 0.0962
+    },
+    {
+      "threshold": 80,
+      "fpr": 0.0,
+      "tpr": 0.2115
+    },
+    {
+      "threshold": 65,
+      "fpr": 0.0029,
+      "tpr": 0.2308
+    },
+    {
+      "threshold": 60,
+      "fpr": 0.0057,
+      "tpr": 0.3654
+    },
+    {
+      "threshold": 45,
+      "fpr": 0.0086,
+      "tpr": 0.4038
+    },
+    {
+      "threshold": 40,
+      "fpr": 0.0517,
+      "tpr": 0.6154
+    },
+    {
+      "threshold": 25,
+      "fpr": 0.0776,
+      "tpr": 0.6731
+    },
+    {
+      "threshold": 20,
+      "fpr": 0.25,
+      "tpr": 0.8654
+    },
+    {
+      "threshold": 0,
+      "fpr": 1.0,
+      "tpr": 1.0
+    }
+  ],
+  "per_rule": [
+    {
+      "code": "DUPLICATE_IMAGE",
+      "label": "Photo reused from another claim",
+      "weight": 40,
+      "fired": 16,
+      "precision": 0.9375,
+      "recall": 0.2885
+    },
+    {
+      "code": "AMOUNT_OVER_SUM_INSURED",
+      "label": "Claim amount exceeds the sum insured",
+      "weight": 40,
+      "fired": 31,
+      "precision": 0.5161,
+      "recall": 0.3077
+    },
+    {
+      "code": "EXIF_INCONSISTENT",
+      "label": "Photo metadata inconsistent with incident",
+      "weight": 20,
+      "fired": 33,
+      "precision": 0.4545,
+      "recall": 0.2885
+    },
+    {
+      "code": "SYNTHETIC_IMAGE",
+      "label": "Photo appears AI-generated / synthetic",
+      "weight": 25,
+      "fired": 20,
+      "precision": 0.45,
+      "recall": 0.1731
+    },
+    {
+      "code": "EARLY_CLAIM",
+      "label": "Claim within 30 days of policy start",
+      "weight": 20,
+      "fired": 70,
+      "precision": 0.3429,
+      "recall": 0.4615
+    }
+  ],
+  "histogram": [
+    {
+      "bucket": "0",
+      "lo": 0,
+      "fraud": 7,
+      "legit": 261
+    },
+    {
+      "bucket": "10",
+      "lo": 10,
+      "fraud": 0,
+      "legit": 0
+    },
+    {
+      "bucket": "20",
+      "lo": 20,
+      "fraud": 13,
+      "legit": 69
+    },
+    {
+      "bucket": "30",
+      "lo": 30,
+      "fraud": 0,
+      "legit": 0
+    },
+    {
+      "bucket": "40",
+      "lo": 40,
+      "fraud": 13,
+      "legit": 16
+    },
+    {
+      "bucket": "50",
+      "lo": 50,
+      "fraud": 0,
+      "legit": 0
+    },
+    {
+      "bucket": "60",
+      "lo": 60,
+      "fraud": 8,
+      "legit": 2
+    },
+    {
+      "bucket": "70",
+      "lo": 70,
+      "fraud": 0,
+      "legit": 0
+    },
+    {
+      "bucket": "80",
+      "lo": 80,
+      "fraud": 9,
+      "legit": 0
+    },
+    {
+      "bucket": "90",
+      "lo": 90,
+      "fraud": 0,
+      "legit": 0
+    },
+    {
+      "bucket": "100",
+      "lo": 100,
+      "fraud": 2,
+      "legit": 0
+    }
+  ],
+  "pr_curve": [
+    {
+      "threshold": 0,
+      "recall": 1.0,
+      "precision": 0.13
+    },
+    {
+      "threshold": 1,
+      "recall": 0.8654,
+      "precision": 0.3409
+    },
+    {
+      "threshold": 20,
+      "recall": 0.8654,
+      "precision": 0.3409
+    },
+    {
+      "threshold": 25,
+      "recall": 0.6731,
+      "precision": 0.5645
+    },
+    {
+      "threshold": 40,
+      "recall": 0.6154,
+      "precision": 0.64
+    },
+    {
+      "threshold": 45,
+      "recall": 0.4038,
+      "precision": 0.875
+    },
+    {
+      "threshold": 60,
+      "recall": 0.3654,
+      "precision": 0.9048
+    },
+    {
+      "threshold": 65,
+      "recall": 0.2308,
+      "precision": 0.9231
+    },
+    {
+      "threshold": 80,
+      "recall": 0.2115,
+      "precision": 1.0
+    },
+    {
+      "threshold": 85,
+      "recall": 0.0962,
+      "precision": 1.0
+    },
+    {
+      "threshold": 100,
+      "recall": 0.0385,
+      "precision": 1.0
+    }
+  ],
+  "auprc": 0.6625
+}

@@ -98,6 +98,53 @@ class ClaimWorkflowIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void cannotAssignAClaimToaNonInvestigator() throws Exception {
+        long tenant = insertCompany("Alpha", "ALPHA", "alpha");
+        long admin = roleIdByCode("TENANT_ADMIN");
+        long customer = insertCustomer(tenant, "CUST-1");
+        long policy = createPolicy(tenant, admin, customer);
+        // An auditor exists in the tenant but holds no CLAIM_INVESTIGATE permission.
+        long auditor = insertUser(tenant, "aud@alpha.test", "unused-hash", roleIdByCode("AUDITOR"));
+
+        MvcResult draft = mockMvc.perform(post(CLAIMS).header("Authorization", auth(tenant, admin))
+                        .contentType("application/json")
+                        .content("{\"customerId\":" + customer + ",\"insurancePolicyId\":" + policy
+                                + ",\"incidentDate\":\"2024-06-01\",\"claimAmount\":50000,"
+                                + "\"vehicleRegistrationNumber\":\"MH-12-AB-1234\"}"))
+                .andExpect(status().isCreated()).andReturn();
+        long claimId = om.readTree(draft.getResponse().getContentAsString()).get("data").get("id").asLong();
+        mockMvc.perform(post(CLAIMS + "/{id}/submit", claimId).header("Authorization", auth(tenant, admin)))
+                .andExpect(status().isOk());
+        drivePipeline();
+
+        // Assigning to a user who cannot investigate must be rejected — otherwise the claim would be
+        // stranded in UNDER_INVESTIGATION with an assignee who has no way to act on it.
+        mockMvc.perform(post(CLAIMS + "/{id}/assign", claimId).header("Authorization", auth(tenant, admin))
+                        .contentType("application/json")
+                        .content("{\"investigatorUserId\":" + auditor + "}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("NOT_AN_INVESTIGATOR"));
+
+        // The claim must remain assignable, not silently transitioned.
+        mockMvc.perform(get(CLAIMS + "/{id}", claimId).header("Authorization", auth(tenant, admin)))
+                .andExpect(jsonPath("$.data.status").value("AWAITING_ASSIGNMENT"));
+    }
+
+    @Test
+    void malformedRequestBodyIsBadRequestNotServerError() throws Exception {
+        long tenant = insertCompany("Alpha", "ALPHA", "alpha");
+        long admin = roleIdByCode("TENANT_ADMIN");
+
+        // An unknown enum constant can't deserialize -> HttpMessageNotReadableException. Without its
+        // handler this escaped as a 500; a malformed body is the client's 400.
+        mockMvc.perform(post(CLAIMS + "/{id}/decision", 1).header("Authorization", auth(tenant, admin))
+                        .contentType("application/json")
+                        .content("{\"decision\":\"NONSENSE\",\"reason\":\"x\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("MALFORMED_REQUEST_BODY"));
+    }
+
+    @Test
     void cannotDecideAClaimThatIsNotUnderInvestigation() throws Exception {
         long tenant = insertCompany("Alpha", "ALPHA", "alpha");
         long admin = roleIdByCode("TENANT_ADMIN");

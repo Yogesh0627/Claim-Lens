@@ -83,4 +83,8 @@ public class Claim extends TenantAwareEntity {
 
     @Column(name = "reopened_at")
     private Instant reopenedAt;
+
+    /** Ground-truth fraud label, set at decision time. NULL until decided. Feeds fraud-model evaluation. */
+    @Column(name = "fraud_confirmed")
+    private Boolean fraudConfirmed;
 }

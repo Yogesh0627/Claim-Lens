@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useAsync } from "@/hooks/useAsync";
-import { notificationService } from "@/services/miscService";
+import { notificationService, notificationsChanged } from "@/services/miscService";
 import { fromNow } from "@/lib/dayjs";
 import { isApiError } from "@/lib/http";
 
@@ -19,6 +19,8 @@ export default function NotificationsPage() {
     try {
       await notificationService.markRead(id);
       refetch();
+      // Tell the top-bar bell to refresh its unread badge — it holds its own copy of the list.
+      notificationsChanged();
     } catch (e) {
       toast.error(isApiError(e) ? e.message : "Could not update notification");
     }

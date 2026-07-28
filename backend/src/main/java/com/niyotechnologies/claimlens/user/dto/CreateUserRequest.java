@@ -20,10 +20,19 @@ public record CreateUserRequest(
         @NotBlank @Email String email,
         @NotBlank String firstName,
         String lastName,
-        @NotBlank String employeeCode,
+        // Optional at the DTO level: required for staff but auto-generated for a CUSTOMER login (a
+        // policyholder is not an employee). The service enforces the staff-only requirement.
+        String employeeCode,
         String phone,
         @NotBlank String roleCode,
         @Size(min = 6, max = 100) String password,
-        Long customerId
+        Long customerId,
+        // Optional org placement for staff — department, designation, region, home branch and the full
+        // set of branches the user works at. Ignored for a CUSTOMER login (a policyholder has none).
+        Long departmentId,
+        Long designationId,
+        Long regionId,
+        Long homeBranchId,
+        java.util.List<Long> branchIds
 ) {
 }

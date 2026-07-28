@@ -61,6 +61,28 @@ class ProcessingQueryIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void fraudBlockIsHiddenFromRolesWithoutFraudRead() throws Exception {
+        long tenant = insertCompany("Alpha", "ALPHA", "alpha");
+        long admin = roleIdByCode("TENANT_ADMIN");
+        long claimId = submitAndProcessClaim(tenant, admin);
+
+        // CUSTOMER_SUPPORT holds CLAIM_READ but not FRAUD_READ. It may see processing STATUS but the
+        // fraud score/risk/explanation — a restricted assessment — must be withheld. Before the fix
+        // FRAUD_READ was enforced nowhere and the score leaked to every CLAIM_READ role.
+        mockMvc.perform(get("/api/v1/claims/{id}/processing", claimId)
+                        .header("Authorization", "Bearer " + tokenFor(1L, tenant, roleIdByCode("CUSTOMER_SUPPORT"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.state.ocrStatus").value("COMPLETE"))  // status still visible
+                .andExpect(jsonPath("$.data.fraud").doesNotExist());              // fraud block withheld
+
+        // An investigation role keeps full visibility.
+        mockMvc.perform(get("/api/v1/claims/{id}/processing", claimId)
+                        .header("Authorization", "Bearer " + tokenFor(1L, tenant, roleIdByCode("INVESTIGATOR"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fraud.riskLevel").exists());
+    }
+
+    @Test
     void processingViewIsTenantIsolated() throws Exception {
         long tenantA = insertCompany("Alpha", "ALPHA", "alpha");
         long tenantB = insertCompany("Beta", "BETA", "beta");

@@ -46,8 +46,8 @@ export default function NewClaimPage() {
     },
   });
 
-  const { data: customers } = useAsync(() => customerService.list(), []);
-  const { data: policies, error: policiesError } = useAsync(() => policyService.list(), []);
+  const { data: customers } = useAsync(() => customerService.options(), []);
+  const { data: policies, error: policiesError } = useAsync(() => policyService.options(), []);
 
   const customerId = watch("customerId");
   const policyId = watch("insurancePolicyId");

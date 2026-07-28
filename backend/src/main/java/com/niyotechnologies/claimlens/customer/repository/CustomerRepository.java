@@ -1,6 +1,8 @@
 package com.niyotechnologies.claimlens.customer.repository;
 
 import com.niyotechnologies.claimlens.customer.entity.Customer;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -16,4 +18,6 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
     boolean existsByCustomerNumberAndIsDeletedFalse(String customerNumber);
 
     List<Customer> findAllByIsDeletedFalse();
+
+    Page<Customer> findAllByIsDeletedFalse(Pageable pageable);
 }

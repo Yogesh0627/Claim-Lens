@@ -6,10 +6,11 @@ import { Plus } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { DataState, EmptyState } from "@/components/data-state";
 import { DataTable, type Column } from "@/components/data-table";
+import { PaginationBar } from "@/components/pagination-bar";
 import { StatusBadge } from "@/components/status-badge";
 import { Can } from "@/components/can";
 import { Button } from "@/components/ui/button";
-import { useAsync } from "@/hooks/useAsync";
+import { usePaginated } from "@/hooks/usePaginated";
 import { claimService } from "@/services/claimService";
 import { CLAIM_STATUS_META } from "@/lib/enums";
 import { formatCurrency } from "@/lib/format";
@@ -19,7 +20,7 @@ import type { ClaimResponse } from "@/lib/types";
 
 export default function ClaimsPage() {
   const router = useRouter();
-  const { data, loading, error } = useAsync(() => claimService.list(), []);
+  const { meta, setPage, loading, error } = usePaginated(claimService.list);
 
   const columns: Column<ClaimResponse>[] = [
     { header: "Claim #", cell: (c) => <span className="font-medium">{c.claimNumber}</span> },
@@ -53,8 +54,8 @@ export default function ClaimsPage() {
       <DataState
         loading={loading}
         error={error}
-        data={data}
-        emptyWhen={(d) => d.length === 0}
+        data={meta}
+        emptyWhen={(m) => m.totalElements === 0}
         empty={
           <EmptyState
             title="No claims yet"
@@ -71,13 +72,16 @@ export default function ClaimsPage() {
           />
         }
       >
-        {(claims) => (
-          <DataTable
-            columns={columns}
-            rows={claims}
-            getKey={(c) => c.id}
-            onRowClick={(c) => router.push(`/claims/${c.id}`)}
-          />
+        {(m) => (
+          <div className="space-y-4">
+            <DataTable
+              columns={columns}
+              rows={m.content}
+              getKey={(c) => c.id}
+              onRowClick={(c) => router.push(`/claims/${c.id}`)}
+            />
+            <PaginationBar meta={m} onPageChange={setPage} label="claims" />
+          </div>
         )}
       </DataState>
     </>

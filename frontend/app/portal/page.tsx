@@ -43,20 +43,32 @@ export default function PortalClaimsPage() {
         }
       >
         {(claims) => (
-          <div className="space-y-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {claims.map((c) => (
-              <Link key={c.id} href={`/portal/claims/${c.id}`}>
-                <Card className="flex items-center justify-between gap-4 p-4 transition-colors hover:bg-muted/50">
-                  <div className="min-w-0">
-                    <p className="font-medium">{c.claimNumber}</p>
-                    <p className="text-muted-foreground text-xs">
-                      Incident {formatDate(c.incidentDate)}
-                      {c.claimAmount != null ? ` · ${formatCurrency(c.claimAmount, "INR")}` : ""}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-3">
+              <Link key={c.id} href={`/portal/claims/${c.id}`} className="group block">
+                <Card className="hover:border-primary/40 hover:bg-muted/40 flex h-full flex-col gap-3 p-4 transition-colors">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="min-w-0 truncate font-medium">{c.claimNumber}</p>
                     <StatusBadge value={c.status} map={CLAIM_STATUS_META} />
-                    <ChevronRight className="text-muted-foreground h-4 w-4" />
+                  </div>
+
+                  <dl className="grid grid-cols-3 gap-y-1 text-sm">
+                    <dt className="text-muted-foreground col-span-1">Vehicle</dt>
+                    <dd className="col-span-2 text-right font-medium">
+                      {c.vehicleRegistrationNumber ?? "—"}
+                    </dd>
+                    <dt className="text-muted-foreground col-span-1">Incident</dt>
+                    <dd className="col-span-2 text-right font-medium">
+                      {formatDate(c.incidentDate)}
+                    </dd>
+                    <dt className="text-muted-foreground col-span-1">Amount</dt>
+                    <dd className="col-span-2 text-right font-medium">
+                      {c.claimAmount != null ? formatCurrency(c.claimAmount, "INR") : "—"}
+                    </dd>
+                  </dl>
+
+                  <div className="text-muted-foreground group-hover:text-foreground mt-auto flex items-center justify-end gap-1 text-xs transition-colors">
+                    View details <ChevronRight className="h-3.5 w-3.5" />
                   </div>
                 </Card>
               </Link>

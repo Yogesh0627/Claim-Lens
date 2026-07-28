@@ -2,6 +2,8 @@ package com.niyotechnologies.claimlens.user.repository;
 
 import com.niyotechnologies.claimlens.user.entity.AppUser;
 import com.niyotechnologies.claimlens.user.enums.UserStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -59,4 +61,7 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
     List<AppUser> findAllByIsDeletedFalseOrderByFirstNameAsc();
 
     List<AppUser> findAllByRoleIdAndIsDeletedFalseOrderByFirstNameAsc(Long roleId);
+
+    /** Paged directory listing for the Users screen (tenant-scoped by @TenantId). */
+    Page<AppUser> findAllByIsDeletedFalse(Pageable pageable);
 }

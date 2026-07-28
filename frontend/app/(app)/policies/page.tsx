@@ -6,11 +6,12 @@ import { Plus } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { DataState, EmptyState } from "@/components/data-state";
 import { DataTable, type Column } from "@/components/data-table";
+import { PaginationBar } from "@/components/pagination-bar";
 import { StatusBadge } from "@/components/status-badge";
 import { Can } from "@/components/can";
 import { Button } from "@/components/ui/button";
 import { PolicyFormDialog } from "@/components/policies/policy-form-dialog";
-import { useAsync } from "@/hooks/useAsync";
+import { usePaginated } from "@/hooks/usePaginated";
 import { policyService } from "@/services/policyService";
 import { GENERIC_STATUS_META } from "@/lib/enums";
 import { formatCurrency } from "@/lib/format";
@@ -20,7 +21,7 @@ import type { PolicyResponse } from "@/lib/types";
 
 export default function PoliciesPage() {
   const router = useRouter();
-  const { data, loading, error, refetch } = useAsync(() => policyService.list(), []);
+  const { meta, setPage, loading, error, refetch } = usePaginated(policyService.list);
   const [open, setOpen] = useState(false);
 
   const columns: Column<PolicyResponse>[] = [
@@ -55,8 +56,8 @@ export default function PoliciesPage() {
       <DataState
         loading={loading}
         error={error}
-        data={data}
-        emptyWhen={(d) => d.length === 0}
+        data={meta}
+        emptyWhen={(m) => m.totalElements === 0}
         empty={
           <EmptyState
             title="No policies"
@@ -70,13 +71,16 @@ export default function PoliciesPage() {
           />
         }
       >
-        {(policies) => (
-          <DataTable
-            columns={columns}
-            rows={policies}
-            getKey={(p) => p.id}
-            onRowClick={(p) => router.push(`/policies/${p.id}`)}
-          />
+        {(m) => (
+          <div className="space-y-4">
+            <DataTable
+              columns={columns}
+              rows={m.content}
+              getKey={(p) => p.id}
+              onRowClick={(p) => router.push(`/policies/${p.id}`)}
+            />
+            <PaginationBar meta={m} onPageChange={setPage} label="policies" />
+          </div>
         )}
       </DataState>
 

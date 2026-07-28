@@ -150,6 +150,17 @@ class TenantIsolationIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void unmappedEndpointIsNotFoundNotServerError() throws Exception {
+        long tenantA = insertCompany("Alpha Insurance", "ALPHA", "alpha");
+
+        // A wrong/renamed URL reaches Spring as NoResourceFoundException. Before its handler it fell
+        // through the catch-all as a 500 — a server fault for what is only a bad path.
+        mockMvc.perform(get("/api/v1/organizations/users")   // real path is /api/v1/users
+                        .header("Authorization", "Bearer " + tokenFor(1L, tenantA, ROLE_ID)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void listReturnsOnlyOwnTenantRegions() throws Exception {
         long tenantA = insertCompany("Alpha Insurance", "ALPHA", "alpha");
         long tenantB = insertCompany("Beta Insurance", "BETA", "beta");

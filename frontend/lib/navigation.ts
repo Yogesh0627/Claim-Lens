@@ -6,6 +6,7 @@ import {
   Package,
   ScrollText,
   ShieldAlert,
+  ShieldCheck,
   Users,
   Briefcase,
   IdCard,
@@ -91,6 +92,12 @@ export const NAV_SECTIONS: NavSection[] = [
         title: "Users",
         href: "/organization/users",
         icon: Users,
+        permission: [PERMISSIONS.USER_READ],
+      },
+      {
+        title: "Roles & Permissions",
+        href: "/organization/roles",
+        icon: ShieldCheck,
         permission: [PERMISSIONS.USER_READ],
       },
       {

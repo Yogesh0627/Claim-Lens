@@ -1,12 +1,18 @@
 package com.niyotechnologies.claimlens.portal.controller;
 
 import com.niyotechnologies.claimlens.claim.dto.response.ClaimResponse;
+import com.niyotechnologies.claimlens.claim.dto.response.ClaimTimelineEntryResponse;
 import com.niyotechnologies.claimlens.common.response.ApiResponse;
+import com.niyotechnologies.claimlens.coverage.dto.AskCoverageResponse;
+import com.niyotechnologies.claimlens.portal.dto.request.PortalAskCoverageRequest;
 import com.niyotechnologies.claimlens.document.dto.response.DocumentContent;
 import com.niyotechnologies.claimlens.document.dto.response.DocumentResponse;
+import com.niyotechnologies.claimlens.document.dto.response.DocumentVersionResponse;
 import com.niyotechnologies.claimlens.policy.dto.response.PolicyResponse;
 import com.niyotechnologies.claimlens.portal.dto.request.FileClaimRequest;
 import com.niyotechnologies.claimlens.portal.service.PortalService;
+import com.niyotechnologies.claimlens.product.dto.response.ProductDocumentResponse;
+import com.niyotechnologies.claimlens.product.service.ProductDocumentService.DownloadedFile;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +42,32 @@ public class PortalController {
     @GetMapping("/policies")
     public ApiResponse<List<PolicyResponse>> myPolicies() {
         return ApiResponse.success(portalService.myPolicies());
+    }
+
+    @GetMapping("/policies/{policyId}/documents")
+    public ApiResponse<List<ProductDocumentResponse>> myPolicyDocuments(@PathVariable Long policyId) {
+        return ApiResponse.success(portalService.myPolicyDocuments(policyId));
+    }
+
+    @PostMapping("/coverage/ask")
+    public ApiResponse<AskCoverageResponse> askCoverage(
+            @Valid @RequestBody PortalAskCoverageRequest request) {
+        return ApiResponse.success(portalService.askCoverage(request));
+    }
+
+    @GetMapping("/policies/{policyId}/documents/{documentId}/download")
+    public ResponseEntity<byte[]> downloadPolicyDocument(
+            @PathVariable Long policyId,
+            @PathVariable Long documentId) {
+        DownloadedFile doc = portalService.downloadMyPolicyDocument(policyId, documentId);
+        MediaType contentType = doc.contentType() != null
+                ? MediaType.parseMediaType(doc.contentType())
+                : MediaType.APPLICATION_OCTET_STREAM;
+        return ResponseEntity.ok()
+                .contentType(contentType)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.inline().filename(doc.fileName()).build().toString())
+                .body(doc.content());
     }
 
     @GetMapping("/claims")
@@ -73,11 +105,37 @@ public class PortalController {
         return ApiResponse.success(portalService.myClaimDocuments(claimId));
     }
 
+    @GetMapping("/claims/{claimId}/timeline")
+    public ApiResponse<List<ClaimTimelineEntryResponse>> myClaimTimeline(@PathVariable Long claimId) {
+        return ApiResponse.success(portalService.myClaimTimeline(claimId));
+    }
+
     @GetMapping("/claims/{claimId}/documents/{documentId}/download")
     public ResponseEntity<byte[]> download(
             @PathVariable Long claimId,
             @PathVariable Long documentId) {
         DocumentContent doc = portalService.downloadMyClaimDocument(claimId, documentId);
+        return streamInline(doc);
+    }
+
+    @GetMapping("/claims/{claimId}/documents/{documentId}/versions")
+    public ApiResponse<List<DocumentVersionResponse>> myClaimDocumentVersions(
+            @PathVariable Long claimId,
+            @PathVariable Long documentId) {
+        return ApiResponse.success(portalService.myClaimDocumentVersions(claimId, documentId));
+    }
+
+    @GetMapping("/claims/{claimId}/documents/{documentId}/versions/{versionId}/download")
+    public ResponseEntity<byte[]> downloadVersion(
+            @PathVariable Long claimId,
+            @PathVariable Long documentId,
+            @PathVariable Long versionId) {
+        DocumentContent doc =
+                portalService.downloadMyClaimDocumentVersion(claimId, documentId, versionId);
+        return streamInline(doc);
+    }
+
+    private ResponseEntity<byte[]> streamInline(DocumentContent doc) {
         MediaType contentType = doc.contentType() != null
                 ? MediaType.parseMediaType(doc.contentType())
                 : MediaType.APPLICATION_OCTET_STREAM;

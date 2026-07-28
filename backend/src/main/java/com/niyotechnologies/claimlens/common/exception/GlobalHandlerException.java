@@ -9,8 +9,10 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.niyotechnologies.claimlens.common.response.ValidationErrorResponse;
 import org.springframework.validation.FieldError;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -125,6 +127,43 @@ public class GlobalHandlerException {
                                         + (ex.getRequiredType() != null
                                                 ? ex.getRequiredType().getSimpleName()
                                                 : "value")
+                        )
+                );
+    }
+
+    // An unparseable body — malformed JSON, or a value that can't map to the target type such as an
+    // unknown enum constant ("decision":"NONSENSE") — reaches Spring as HttpMessageNotReadableException.
+    // Without this it escaped to the catch-all as a 500, reporting a server fault for a client-side
+    // malformed request. The raw message can expose type/package internals, so it is not echoed back.
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiErrorResponse> handleUnreadableBody(
+            HttpMessageNotReadableException ex
+    ) {
+
+        return ResponseEntity
+                .badRequest()
+                .body(
+                        ApiErrorResponse.of(
+                                "MALFORMED_REQUEST_BODY",
+                                "Request body is missing, malformed, or has an invalid value"
+                        )
+                );
+    }
+
+    // An unmapped URL (a typo'd or renamed endpoint) reaches Spring as NoResourceFoundException.
+    // Without this it falls through to the catch-all as a 500 — reporting a server fault for what is
+    // simply a wrong path. A missing route is the client's 404, not the server's 500.
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleNoResource(
+            NoResourceFoundException ex
+    ) {
+
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(
+                        ApiErrorResponse.of(
+                                "RESOURCE_NOT_FOUND",
+                                "No endpoint for " + ex.getHttpMethod() + " " + ex.getResourcePath()
                         )
                 );
     }

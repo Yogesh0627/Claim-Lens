@@ -7,12 +7,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useAsync } from "@/hooks/useAsync";
 import { useMutation } from "@/hooks/useMutation";
 import { rulesetService } from "@/services/rulesetService";
 
@@ -53,6 +61,20 @@ export function RulesetFormDialog({
   });
   const { fields, append, remove } = useFieldArray({ control, name: "rules" });
   const rules = watch("rules");
+
+  // The implemented rules the engine actually understands. Picking from these (instead of free text)
+  // prevents adding a code with no evaluator, which the engine would silently ignore.
+  const { data: catalog } = useAsync(() => rulesetService.ruleCatalog(), []);
+
+  // When a rule code is chosen, auto-fill its description + suggested weight from the catalog.
+  const chooseRule = (index: number, code: string) => {
+    setValue(`rules.${index}.code`, code);
+    const entry = catalog?.find((c) => c.code === code);
+    if (entry) {
+      setValue(`rules.${index}.description`, entry.description);
+      setValue(`rules.${index}.weight`, entry.defaultWeight);
+    }
+  };
 
   const save = useMutation(
     (v: RulesetForm) =>
@@ -128,12 +150,32 @@ export function RulesetFormDialog({
                 className="grid grid-cols-2 items-end gap-2 rounded-md border p-2 sm:grid-cols-[1fr_1fr_80px_auto_auto] sm:border-0 sm:p-0"
               >
                 <div className="col-span-2 grid gap-1 sm:col-span-1">
-                  <Label className="text-xs">Code</Label>
-                  <Input {...register(`rules.${index}.code` as const, { required: true })} />
+                  <Label className="text-xs">Rule</Label>
+                  {/* Hidden field keeps the code registered for validation; the Select drives it. */}
+                  <input type="hidden" {...register(`rules.${index}.code` as const, { required: true })} />
+                  <Select
+                    value={rules?.[index]?.code || undefined}
+                    onValueChange={(code) => chooseRule(index, code)}
+                  >
+                    <SelectTrigger className="cursor-pointer">
+                      <SelectValue placeholder="Choose a rule" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(catalog ?? []).map((c) => (
+                        <SelectItem key={c.code} value={c.code}>
+                          {c.code}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="col-span-2 grid gap-1 sm:col-span-1">
                   <Label className="text-xs">Description</Label>
-                  <Input {...register(`rules.${index}.description` as const)} />
+                  <Input
+                    readOnly
+                    className="text-muted-foreground"
+                    {...register(`rules.${index}.description` as const)}
+                  />
                 </div>
                 <div className="grid gap-1">
                   <Label className="text-xs">Weight</Label>

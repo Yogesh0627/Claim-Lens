@@ -1,6 +1,7 @@
 package com.niyotechnologies.claimlens.user.controller;
 
 import com.niyotechnologies.claimlens.common.response.ApiResponse;
+import com.niyotechnologies.claimlens.common.response.PagedResponse;
 import com.niyotechnologies.claimlens.user.dto.CreateUserRequest;
 import com.niyotechnologies.claimlens.user.dto.UpdateUserRequest;
 import com.niyotechnologies.claimlens.user.dto.UserResponse;
@@ -22,9 +23,17 @@ public class UserController {
     private final UserService userService;
 
     @GetMapping
-    public ApiResponse<List<UserResponse>> list(
+    public ApiResponse<PagedResponse<UserResponse>> list(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ApiResponse.success(userService.list(page, size));
+    }
+
+    /** Unpaged — for staff pickers (e.g. the investigator dropdown), optionally filtered by role. */
+    @GetMapping("/options")
+    public ApiResponse<List<UserResponse>> options(
             @RequestParam(name = "role", required = false) String roleCode) {
-        return ApiResponse.success(userService.list(roleCode));
+        return ApiResponse.success(userService.options(roleCode));
     }
 
     @PostMapping

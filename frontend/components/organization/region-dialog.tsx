@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FieldError } from "@/components/field-error";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -81,7 +82,7 @@ export function RegionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit region" : "New region"}</DialogTitle>
         </DialogHeader>
@@ -90,11 +91,13 @@ export function RegionDialog({
             <div className="grid gap-2">
               <Label>Code *</Label>
               <Input {...register("code", { required: true })} />
+              <FieldError name="code" errors={save.fieldErrors} />
             </div>
           ) : null}
           <div className="grid gap-2">
             <Label>Name *</Label>
             <Input {...register("name", { required: true })} />
+            <FieldError name="name" errors={save.fieldErrors} />
           </div>
           <div className="grid gap-2">
             <Label>Status</Label>
@@ -114,6 +117,7 @@ export function RegionDialog({
           <div className="grid gap-2">
             <Label>Description</Label>
             <Textarea rows={2} {...register("description")} />
+            <FieldError name="description" errors={save.fieldErrors} />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

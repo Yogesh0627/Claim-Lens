@@ -9,6 +9,7 @@ import com.niyotechnologies.claimlens.organization.enums.SubscriptionPlan;
 import com.niyotechnologies.claimlens.organization.repository.InsuranceCompanyRepository;
 import com.niyotechnologies.claimlens.platform.dto.ImpersonationResponse;
 import com.niyotechnologies.claimlens.platform.dto.OnboardTenantRequest;
+import com.niyotechnologies.claimlens.platform.dto.UpdateTenantRequest;
 import com.niyotechnologies.claimlens.role.repository.RoleRepository;
 import com.niyotechnologies.claimlens.security.config.JwtProperties;
 import com.niyotechnologies.claimlens.security.model.ClaimLensPrincipal;
@@ -19,6 +20,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -45,7 +47,9 @@ public class PlatformService {
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('PLATFORM_ADMIN')")
     public List<InsuranceCompanyResponse> listTenants() {
-        return companyRepository.findAllByIsDeletedFalse().stream().map(PlatformService::toResponse).toList();
+        // Include soft-deleted tenants: the platform console buckets them into a "Deleted" tab and
+        // offers restore, so they must be returned (with isDeleted set) rather than filtered out.
+        return companyRepository.findAll().stream().map(PlatformService::toResponse).toList();
     }
 
     @Transactional
@@ -76,6 +80,45 @@ public class PlatformService {
         InsuranceCompany company = companyRepository.findByIdAndIsDeletedFalse(tenantId)
                 .orElseThrow(() -> new NotFoundException("TENANT_NOT_FOUND", "Tenant not found"));
         company.setStatus(parseStatus(status));
+        return toResponse(companyRepository.save(company));
+    }
+
+    /** Edit a tenant's mutable fields. code/tenantKey are identity and stay fixed. */
+    @Transactional
+    @PreAuthorize("hasAuthority('PLATFORM_ADMIN')")
+    public InsuranceCompanyResponse updateTenant(Long tenantId, UpdateTenantRequest request) {
+        InsuranceCompany company = companyRepository.findByIdAndIsDeletedFalse(tenantId)
+                .orElseThrow(() -> new NotFoundException("TENANT_NOT_FOUND", "Tenant not found"));
+        company.setName(request.name());
+        company.setSubscriptionPlan(parsePlan(request.subscriptionPlan()));
+        company.setCurrency(request.currency());
+        company.setTimezone(request.timezone());
+        company.setContactEmail(request.contactEmail());
+        return toResponse(companyRepository.save(company));
+    }
+
+    /** Soft-delete a tenant (recoverable). The row stays for the audit trail and the Deleted tab. */
+    @Transactional
+    @PreAuthorize("hasAuthority('PLATFORM_ADMIN')")
+    public InsuranceCompanyResponse deleteTenant(Long tenantId) {
+        InsuranceCompany company = companyRepository.findByIdAndIsDeletedFalse(tenantId)
+                .orElseThrow(() -> new NotFoundException("TENANT_NOT_FOUND", "Tenant not found"));
+        company.setIsDeleted(true);
+        company.setDeletedAt(Instant.now());
+        return toResponse(companyRepository.save(company));
+    }
+
+    /** Restore a soft-deleted tenant. Uses findById (not the not-deleted finder) to reach it. */
+    @Transactional
+    @PreAuthorize("hasAuthority('PLATFORM_ADMIN')")
+    public InsuranceCompanyResponse restoreTenant(Long tenantId) {
+        InsuranceCompany company = companyRepository.findById(tenantId)
+                .orElseThrow(() -> new NotFoundException("TENANT_NOT_FOUND", "Tenant not found"));
+        if (!Boolean.TRUE.equals(company.getIsDeleted())) {
+            throw new BusinessException("TENANT_NOT_DELETED", "Tenant is not deleted");
+        }
+        company.setIsDeleted(false);
+        company.setDeletedAt(null);
         return toResponse(companyRepository.save(company));
     }
 
@@ -129,7 +172,10 @@ public class PlatformService {
                 .subscriptionPlan(c.getSubscriptionPlan())
                 .currency(c.getCurrency())
                 .timezone(c.getTimezone())
+                .contactEmail(c.getContactEmail())
                 .createdAt(c.getCreatedAt())
+                .isDeleted(Boolean.TRUE.equals(c.getIsDeleted()))
+                .deletedAt(c.getDeletedAt())
                 .build();
     }
 }

@@ -3,6 +3,7 @@ import type {
   ApiResponse,
   CreateProductRequest,
   CreateProductVersionRequest,
+  ProductDocumentResponse,
   ProductResponse,
   ProductVersionResponse,
   UpdateProductRequest,
@@ -29,4 +30,31 @@ export const productService = {
         {},
       ),
     ),
+
+  // ── Product-version documents (e.g. the policy-wording PDF) ──
+  listDocuments: (productId: number, versionId: number) =>
+    unwrap(
+      http.get<ApiResponse<ProductDocumentResponse[]>>(
+        `/products/${productId}/versions/${versionId}/documents`,
+      ),
+    ),
+  uploadDocument: (productId: number, versionId: number, file: File, documentType = "POLICY_WORDING") => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("documentType", documentType);
+    return unwrap(
+      http.post<ApiResponse<ProductDocumentResponse>>(
+        `/products/${productId}/versions/${versionId}/documents`,
+        form,
+      ),
+    );
+  },
+  /** Fetches the raw bytes and returns a blob URL (revoke it when done). */
+  documentDownloadUrl: async (productId: number, versionId: number, documentId: number): Promise<string> => {
+    const res = await http.get(
+      `/products/${productId}/versions/${versionId}/documents/${documentId}/download`,
+      { responseType: "blob" },
+    );
+    return URL.createObjectURL(res.data as Blob);
+  },
 };

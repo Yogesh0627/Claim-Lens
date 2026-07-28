@@ -1,6 +1,7 @@
 import { http } from "@/lib/http";
 import type {
   ApiResponse,
+  AskableProduct,
   AskCoverageRequest,
   AskCoverageResponse,
   IngestKnowledgeResponse,
@@ -11,6 +12,10 @@ const unwrap = <T>(p: Promise<{ data: ApiResponse<T> }>) => p.then((r) => r.data
 export const coverageService = {
   ask: (body: AskCoverageRequest) =>
     unwrap(http.post<ApiResponse<AskCoverageResponse>>("/coverage/ask", body)),
+
+  /** Products with ingested wording — the staff assistant's picker. */
+  askableProducts: () =>
+    unwrap(http.get<ApiResponse<AskableProduct[]>>("/coverage/products")),
 
   status: (productId: number, versionId: number) =>
     unwrap(

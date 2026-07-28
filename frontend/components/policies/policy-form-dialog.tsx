@@ -57,7 +57,7 @@ export function PolicyFormDialog({
   const { register, handleSubmit, watch, setValue, reset, control } = useForm<PolicyForm>({
     defaultValues: { currency: "INR" },
   });
-  const { data: customers } = useAsync(() => customerService.list(), []);
+  const { data: customers } = useAsync(() => customerService.options(), []);
   const { data: products } = useAsync(() => productService.list(), []);
   const customerId = watch("customerId");
   const productId = watch("insuranceProductId");

@@ -12,6 +12,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { AppFooter } from "@/components/app-footer";
 import { ImpersonationBanner } from "@/components/impersonation-banner";
 import { RouteTitle } from "@/components/route-title";
+import { StaffAssistant } from "@/components/ai/staff-assistant";
 import { useAuth } from "@/hooks/useAuth";
 import { PERMISSIONS } from "@/lib/permissions";
 
@@ -53,6 +54,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <main className="w-full min-w-0 flex-1 p-4 md:p-6">
           <div className="mx-auto w-full max-w-7xl space-y-6">{children}</div>
         </main>
+        <StaffAssistant />
         <AppFooter />
       </SidebarInset>
     </SidebarProvider>
