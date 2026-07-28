@@ -99,11 +99,14 @@ venv/
 Thumbs.db
 
 # =====================
-# Coverage
+# Coverage (test-coverage reports only — NOT the Java 'coverage' domain package)
 # =====================
 
-coverage/
+/frontend/coverage/
 .coverage
+# Never ignore the backend 'coverage' (RAG) Java package — a bare `coverage/` rule
+# silently excludes it and breaks the Docker/Render build (missing CoverageService, etc.).
+!backend/src/main/java/**/coverage/
 
 # =====================
 # Build Artifacts
