@@ -33,4 +33,20 @@ public record PagedResponse<T>(
                 page.isFirst(),
                 page.isLast());
     }
+
+    /**
+     * Take the paging metadata from {@code page} but the already-mapped {@code content}. Used when the
+     * content is produced by a batch mapper (one that loads a whole page's references at once to avoid
+     * an N+1), so the per-element {@link #from} signature doesn't fit.
+     */
+    public static <T> PagedResponse<T> of(Page<?> page, List<T> content) {
+        return new PagedResponse<>(
+                content,
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.isFirst(),
+                page.isLast());
+    }
 }

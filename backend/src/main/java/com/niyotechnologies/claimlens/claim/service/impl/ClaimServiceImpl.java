@@ -497,9 +497,9 @@ public class ClaimServiceImpl implements ClaimService {
     public PagedResponse<ClaimResponse> getClaims(int page, int size) {
         // Newest first so a freshly created claim lands at the top of page 0.
         var pageable = PageRequests.of(page, size, Sort.by(Sort.Direction.DESC, "id"));
-        return PagedResponse.from(
-                claimRepository.findAllByIsDeletedFalse(pageable),
-                c -> claimMapper.toResponse(c, List.of()));
+        var claims = claimRepository.findAllByIsDeletedFalse(pageable);
+        // Batch-map the whole page (one query per referenced type) instead of ~6 lookups per claim.
+        return PagedResponse.of(claims, claimMapper.toResponses(claims.getContent()));
     }
 
     private Claim getClaimOrThrow(Long claimId) {

@@ -1835,3 +1835,44 @@ wall, and must be paired with account lockout.
 mislabeling client errors as server faults, which also pollutes error dashboards and hides real
 incidents. The fix is purely in the exception mapper; no business logic touched, and the full test
 suite stayed green.
+
+## Fixing the N+1 in the claim list (batch-load a page) — 106 tests green
+
+The security/QA audit flagged a performance issue I then fixed: `GET /claims` had a classic **N+1**.
+`ClaimMapper.toResponse(claim)` turns a claim's foreign keys into human labels, and to do it it
+fired **~6 `findById` queries per claim** — product version, product, customer, creator, creator's
+role, and the assignment→officer. The list endpoint mapped each row through it, so a page of 10
+claims cost **1 (the page) + 10×6 ≈ 61 queries**. Locally that's ~60 ms (survivable); on the remote
+**Neon** DB, where each round-trip is ~20–50 ms, 61 *serialized* round-trips is **1–3 seconds for one
+page**. It also repeats work — five claims by the same customer did five identical customer lookups.
+
+**The fix — batch-load per page.** Instead of "for each claim, look up its refs," collect every
+referenced id across the whole page first, load each type in **one `WHERE id IN (…)` query**, build
+in-memory maps, and map each claim from the maps. I added a `ClaimMapper.toResponses(List<Claim>)`
+alongside the single `toResponse` (single-claim callers — create/submit/decide — are untouched; both
+paths route through one private `assemble()` so the response shape can't drift), plus
+`findAllByIdInAndIsDeletedFalse` / `findAllByClaimIdIn` on the five repositories.
+
+**Result: ~61 → ~6 queries, and now *constant*** — a page of 100 costs the same ~6 as a page of 10.
+On Neon that's roughly **1–3 s → ~150 ms**. Crucially the batch queries are still `@TenantId`-scoped
+and soft-delete-filtered, so **isolation is unchanged** — this was a pure performance change, verified
+by the full suite (106) staying green because the output is byte-identical.
+
+> **Interview framing (and a cross-project through-line):** "The list was slow because the mapper did
+> a per-row fan-out — the N+1 pattern. I bounded it first with server-side pagination, then removed it
+> with batch-loading: gather the page's ids, one `IN` query per referenced type, map from maps. I've
+> hit and fixed the *same* pattern in a different codebase (WoCo PMS) — there it was per-record lookups
+> in a reviews/goals list; same cure. The tell is always *query count growing with row count*; the fix
+> is always *turn N lookups into one batched lookup keyed by a map*."
+>
+> **Q: Why not just use JPA `@ManyToOne` + `JOIN FETCH`/`@EntityGraph`?** Because this codebase stores
+> FKs as raw `Long` ids (which pairs cleanly with the `@TenantId` discriminator), not as JPA
+> associations — so batch `findAllById` + maps fits the existing design without a relational-mapping
+> refactor. A flat projection query (one JOIN → the DTO) would be even fewer queries but more
+> hand-written SQL to maintain; batch-load was the right cost/benefit here.
+>
+> **Q: Did it change behaviour?** No — same fields, same nulls, same tenant scoping. The single-claim
+> path is unchanged; only the list path batches. The 106-test suite proves equivalence.
+>
+> **Note:** the users and policies lists have milder versions of the same shape (e.g. the policy mapper
+> does one vehicle lookup per row) — the same batch-load technique applies if they ever need it.

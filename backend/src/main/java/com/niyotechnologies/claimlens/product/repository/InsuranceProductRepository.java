@@ -16,4 +16,7 @@ public interface InsuranceProductRepository extends JpaRepository<InsuranceProdu
     boolean existsByCodeAndIsDeletedFalse(String code);
 
     List<InsuranceProduct> findAllByIsDeletedFalse();
+
+    /** Batch lookup for a page of ids (avoids N+1 in the claim mapper). */
+    List<InsuranceProduct> findAllByIdInAndIsDeletedFalse(java.util.Collection<Long> ids);
 }

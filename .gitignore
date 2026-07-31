@@ -69,6 +69,9 @@ logs/
 # Real secrets live here (never committed). See backend/.env.example for the template.
 .env
 .env.*
+# ...but DO commit the example templates (a bare `.env.*` rule wrongly hides them).
+!.env.example
+!**/.env.example
 
 # Developer-local overrides only. Base application.properties (env placeholders, no secrets)
 # and per-environment profiles are tracked deliberately.

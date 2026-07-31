@@ -224,11 +224,16 @@ These are the places things usually break; each was attacked directly and held:
 
 ## 5. Architecture & performance notes (Phase 7/8)
 
-- **N+1 in `ClaimMapper` (CONFIRMED).** `toResponse` calls **6 repositories per claim** (product
-  version, product, customer, user, role, assignment). Server-side pagination now bounds this to one
-  page (≤10 rows → ~60 queries), which is why the list endpoints were paginated — but each row still
-  fans out. *Recommended:* batch-load the referenced entities once per page (`findAllById`) and map
-  from maps. Measured list latency today is healthy (4–120 ms; the spikes are dev-JIT warmup).
+- **N+1 in `ClaimMapper` (CONFIRMED). ✅ FIXED.** `toResponse` called **~6 repositories per claim**
+  (product version, product, customer, user, role, assignment), so `GET /claims` cost `1 + N×6 ≈ 61`
+  queries per 10-row page — fine locally (~60 ms) but ~1–3 s on remote Neon (serialized round-trips).
+  Pagination bounded it; batch-loading removed it. Added `ClaimMapper.toResponses(List<Claim>)` that
+  collects the page's ids and loads each referenced type in one `IN (…)` query, then maps from maps
+  (single-claim `toResponse` untouched; both route through one `assemble()`), plus
+  `findAllByIdInAndIsDeletedFalse` / `findAllByClaimIdIn` on 5 repos. **~61 → ~6 queries, constant per
+  page**; batch queries stay `@TenantId`-scoped (isolation unchanged); output byte-identical, so all
+  106 tests stayed green. (The users/policies lists have milder versions of the same shape — same cure
+  if needed.)
 - **Frontend validation (from the surface map).** No `zod`; a few `<Select>` fields in the new-claim
   and new-policy forms aren't registered with react-hook-form, so a submit with nothing chosen can send
   `NaN`/`undefined` and rely on the backend to reject. Route gating is **client-side only** (no

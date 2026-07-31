@@ -20,4 +20,7 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
     List<Customer> findAllByIsDeletedFalse();
 
     Page<Customer> findAllByIsDeletedFalse(Pageable pageable);
+
+    /** Batch lookup for a page of ids (avoids N+1 when enriching claim/policy lists). */
+    List<Customer> findAllByIdInAndIsDeletedFalse(java.util.Collection<Long> ids);
 }

@@ -17,6 +17,9 @@ public interface InsuranceProductVersionRepository
 
     List<InsuranceProductVersion> findAllByInsuranceProductIdAndIsDeletedFalse(Long productId);
 
+    /** Batch lookup for a page of ids (avoids N+1 in the claim mapper). */
+    List<InsuranceProductVersion> findAllByIdInAndIsDeletedFalse(java.util.Collection<Long> ids);
+
     Optional<InsuranceProductVersion>
     findByInsuranceProductIdAndStatusAndIsDeletedFalse(Long productId, ProductVersionStatus status);
 

@@ -57,6 +57,9 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
     // Eligible-investigator lookup (tenant-scoped by @TenantId).
     List<AppUser> findAllByRoleIdAndStatusAndIsDeletedFalse(Long roleId, UserStatus status);
 
+    /** Batch lookup for a page of ids (avoids N+1 when the claim mapper resolves creators/officers). */
+    List<AppUser> findAllByIdInAndIsDeletedFalse(java.util.Collection<Long> ids);
+
     // Directory listings (tenant-scoped by @TenantId).
     List<AppUser> findAllByIsDeletedFalseOrderByFirstNameAsc();
 
